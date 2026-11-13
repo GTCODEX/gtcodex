@@ -9,10 +9,11 @@ venv/
 .venv/
 ENV/
 
-# Environment variables & secrets
+# Environment variables, local settings & sent-email ledger
 .env
 .env.local
 *.key
+data/
 
 # Operating System
 .DS_Store

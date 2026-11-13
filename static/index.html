@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LeadFinder - Open Source Local Business Lead Generator</title>
+  <title>LeadFinder — Local Business Lead Hunter, Website Auditor & Auto-Outreach</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -12,17 +12,34 @@
 <body>
   <div class="app-shell">
     <header class="app-header">
-      <div class="header-main">
-        <div class="brand">
-          <div class="brand-badge">
-            <svg class="icon-zap" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-            </svg>
-            Leads
+      <div class="header-top">
+        <div class="header-main">
+          <div class="brand">
+            <div class="brand-badge">
+              <svg class="icon-zap" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+              </svg>
+              Lead Engine + Auto-Outreach
+            </div>
+            <h1>LeadFinder</h1>
           </div>
-          <h1>LeadFinder</h1>
+          <p class="subtitle">Find businesses without websites, audit existing websites for high-ticket gaps, hunt emails &amp; social DMs, and auto-send tailored pitches.</p>
         </div>
-        <p class="subtitle">Discover local business leads with no website, broken websites, or social-only presence.</p>
+
+        <div class="header-actions">
+          <label class="auto-send-pill" title="Automatically email leads via SMTP as soon as their email is discovered">
+            <input type="checkbox" id="quickAutoSend">
+            <span class="pill-dot"></span>
+            <span id="autoSendLabel">Auto-Email: OFF</span>
+          </label>
+          <button type="button" id="openSettingsBtn" class="btn-secondary btn-settings">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+            Outreach &amp; SMTP Settings
+          </button>
+        </div>
       </div>
     </header>
 
@@ -43,12 +60,12 @@
 
           <div class="field-wrap" id="cityBox">
             <label for="city">City</label>
-            <input id="city" required placeholder="e.g. Enugu, Nigeria">
+            <input id="city" required placeholder="e.g. Sheffield, UK or Austin, Texas (or 53.38, -1.47)">
           </div>
 
           <div class="field-wrap" id="catBox">
             <label for="cat">Business type</label>
-            <input id="cat" required placeholder="e.g. restaurant, salon, clinic">
+            <input id="cat" required placeholder="e.g. restaurant, salon, clinic, hotel, dentist">
           </div>
 
           <div class="field-wrap" id="gridBox">
@@ -62,15 +79,18 @@
                 <circle cx="11" cy="11" r="8"></circle>
                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
               </svg>
-              <span class="btn-text">Search</span>
+              <span class="btn-text">Find &amp; Enrich Leads</span>
             </button>
           </div>
         </div>
       </form>
 
       <div class="status-panel">
-        <div class="status-indicator"></div>
-        <p id="status">Pick a city and business type to start finding leads.</p>
+        <div class="status-left">
+          <div class="status-indicator" id="statusDot"></div>
+          <p id="status">Pick a city and business type to start finding, auditing, and pitching leads.</p>
+        </div>
+        <div class="status-stats" id="statusStats"></div>
       </div>
 
       <nav id="tabs" class="tabs-nav" aria-label="Filter results by website status"></nav>
@@ -81,8 +101,26 @@
             <circle cx="11" cy="11" r="8"></circle>
             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
-          <input id="q" placeholder="Filter results by name, email, phone, category...">
+          <input id="q" placeholder="Filter by business name, email, phone, audit issue, pitch...">
         </div>
+
+        <div class="contact-filter-wrap">
+          <select id="contactFilter" aria-label="Filter by contact availability">
+            <option value="all">All Contact Types</option>
+            <option value="has_email">Has Verified Email</option>
+            <option value="has_dm">Has Social DM or WhatsApp</option>
+            <option value="unsent_email">Unsent Emails Only</option>
+          </select>
+        </div>
+
+        <button id="sendAllBtn" type="button" class="btn-secondary" title="Send tailored outreach emails to all visible leads with an unsent email">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+          <span id="sendAllText">Email All Unsent</span>
+        </button>
+
         <button id="csv" type="button" class="btn-secondary">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -98,12 +136,10 @@
           <thead>
             <tr>
               <th class="th-done" title="Mark contacted">Done</th>
-              <th class="th-biz">Business</th>
-              <th class="th-email">Email</th>
-              <th class="th-contact">Phone & Socials</th>
-              <th class="th-status">Website Status</th>
-              <th class="th-rating">Rating</th>
-              <th class="th-map">Map</th>
+              <th class="th-biz">Business &amp; Score</th>
+              <th class="th-email">Email &amp; Contacts</th>
+              <th class="th-status">Website Audit &amp; What They Need</th>
+              <th class="th-outreach">Tailored Outreach &amp; Instant DM / Email</th>
             </tr>
           </thead>
           <tbody id="rows"></tbody>
@@ -117,6 +153,206 @@
       </p>
     </footer>
   </div>
+
+  <!-- Pitch Preview / Edit Modal -->
+  <div id="pitchModal" class="modal-backdrop" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <span class="modal-eyebrow" id="pitchModalStatus">Tailored Outreach Writeup</span>
+          <h2 id="pitchModalTitle">Business Name</h2>
+        </div>
+        <button type="button" class="modal-close" id="closePitchModal" aria-label="Close">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="pitch-controls-bar">
+          <div class="field-wrap">
+            <label for="pitchAngleSelect">Proposal / Pitch Angle</label>
+            <div class="select-wrapper">
+              <select id="pitchAngleSelect">
+                <option value="auto">Smart Match (Based on Site Status &amp; Audit)</option>
+                <option value="web_design">Custom Website Build / Modern Redesign</option>
+                <option value="ai_automation">24/7 AI Receptionist &amp; WhatsApp Booking Bot</option>
+                <option value="local_seo">Local SEO &amp; Google Maps Top-3 Ranking</option>
+                <option value="ads_funnel">Meta/Google Ads &amp; Retargeting Funnel</option>
+                <option value="custom">Custom Offer (From Settings)</option>
+              </select>
+            </div>
+          </div>
+          <button type="button" id="regenPitchBtn" class="btn-secondary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+            Rewrite Pitch
+          </button>
+          <button type="button" id="aiRewriteBtn" class="btn-secondary" title="Uses Gemini or Groq API if configured in Settings">
+            ✨ AI Polish
+          </button>
+        </div>
+
+        <div id="pitchAuditSummary" class="pitch-audit-box"></div>
+
+        <div class="field-wrap" style="margin-bottom: 12px;">
+          <label for="pitchSubjectInput">Email Subject Line</label>
+          <input id="pitchSubjectInput" type="text">
+        </div>
+
+        <div class="field-wrap" style="margin-bottom: 14px;">
+          <label for="pitchBodyInput">Tailored Email Writeup</label>
+          <textarea id="pitchBodyInput" rows="8"></textarea>
+        </div>
+
+        <div class="field-wrap">
+          <label for="pitchDmInput">Short Social DM / WhatsApp Message (1-Click Copy &amp; DM)</label>
+          <textarea id="pitchDmInput" rows="3"></textarea>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <div class="modal-footer-left">
+          <button type="button" id="modalCopyEmailBtn" class="btn-secondary">Copy Email Pitch</button>
+          <button type="button" id="modalCopyDmBtn" class="btn-secondary">Copy Short DM</button>
+        </div>
+        <div class="modal-footer-right">
+          <a id="modalWaBtn" href="#" target="_blank" rel="noopener" class="btn-action btn-wa" hidden>WhatsApp Pitch</a>
+          <button type="button" id="modalCopyOpenDmBtn" class="btn-action btn-dm" hidden>Copy &amp; Open DM</button>
+          <a id="modalMailtoBtn" href="#" class="btn-secondary">Open Mail App</a>
+          <button type="button" id="modalSendSmtpBtn" class="btn-primary">Send Email Now</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="modal-backdrop" hidden>
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <div>
+          <span class="modal-eyebrow">Outreach &amp; Enrichment Configuration</span>
+          <h2>Identity, Proposals &amp; Auto-Email Settings</h2>
+        </div>
+        <button type="button" class="modal-close" id="closeSettingsModal" aria-label="Close">&times;</button>
+      </div>
+
+      <form id="settingsForm" class="modal-body settings-grid">
+        <div class="settings-section">
+          <h3>1. Your Identity &amp; Signature</h3>
+          <div class="grid-2">
+            <div class="field-wrap">
+              <label for="s_sender_name">Your Name</label>
+              <input id="s_sender_name" placeholder="Frank Oge">
+            </div>
+            <div class="field-wrap">
+              <label for="s_sender_company">Company / Agency</label>
+              <input id="s_sender_company" placeholder="Hackverse Technologies">
+            </div>
+            <div class="field-wrap">
+              <label for="s_sender_portfolio">Portfolio Website</label>
+              <input id="s_sender_portfolio" placeholder="https://frankoge.com">
+            </div>
+            <div class="field-wrap">
+              <label for="s_sender_phone">Your Phone / WhatsApp (Optional)</label>
+              <input id="s_sender_phone" placeholder="+234 ...">
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3>2. Default Proposal Strategy</h3>
+          <div class="field-wrap" style="margin-bottom: 10px;">
+            <label for="s_pitch_angle">Default Pitch Angle for Leads</label>
+            <div class="select-wrapper">
+              <select id="s_pitch_angle">
+                <option value="auto">Smart Auto-Match (Web Build for No-Site, Audit Fixes for Working Sites)</option>
+                <option value="web_design">Custom Website Design &amp; High-Converting Rebuild</option>
+                <option value="ai_automation">24/7 AI Receptionist, Chat Widget &amp; WhatsApp Booking Automation</option>
+                <option value="local_seo">Local SEO &amp; Google Maps Top-3 Pack Ranking</option>
+                <option value="ads_funnel">Google/Meta Ads &amp; Retargeting Funnel</option>
+                <option value="custom">Custom Pitch Offer (Entered Below)</option>
+              </select>
+            </div>
+          </div>
+          <div class="field-wrap">
+            <label for="s_custom_offer">Custom Pitch Offer (Optional)</label>
+            <textarea id="s_custom_offer" rows="2" placeholder="e.g. We help clinics and salons in your city add an automated WhatsApp booking system that increases appointments by 30%..."></textarea>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3>3. Auto-Email (SMTP) Configuration</h3>
+          <p class="section-hint">When enabled, LeadFinder automatically sends your tailored pitch whenever it discovers a verified email address (and never emails the same address twice).</p>
+          <div class="grid-2">
+            <div class="field-wrap">
+              <label for="s_smtp_email">Sending Email (Gmail / Workspace / SMTP)</label>
+              <input id="s_smtp_email" type="email" placeholder="you@yourdomain.com">
+            </div>
+            <div class="field-wrap">
+              <label for="s_smtp_password">App Password (16-char Google App Password)</label>
+              <input id="s_smtp_password" type="password" autocomplete="off" placeholder="••••••••••••••••">
+            </div>
+            <div class="field-wrap">
+              <label for="s_smtp_host">SMTP Host</label>
+              <input id="s_smtp_host" placeholder="smtp.gmail.com">
+            </div>
+            <div class="field-wrap">
+              <label for="s_smtp_port">SMTP Port (465 SSL or 587 TLS)</label>
+              <input id="s_smtp_port" type="number" value="465">
+            </div>
+          </div>
+
+          <div class="checkbox-row">
+            <label class="check-label">
+              <input type="checkbox" id="s_auto_send_email">
+              <strong>Auto-send email immediately when a lead's email is discovered</strong>
+            </label>
+            <label class="check-label">
+              <input type="checkbox" id="s_dry_run">
+              <span>Dry-Run Mode (Simulate sending without dispatching via SMTP)</span>
+            </label>
+          </div>
+
+          <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px;">
+            <button type="button" id="testSmtpBtn" class="btn-secondary" style="height: 34px; padding: 0 12px; font-size: 12px;">Test SMTP Connection</button>
+            <span id="smtpTestStatus" class="site-note"></span>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3>4. Optional API Keys (Hunter.io / Gemini / Groq)</h3>
+          <p class="section-hint">100% optional. LeadFinder already hunts emails via search snippets, directories, and website crawling for free without any keys.</p>
+          <div class="grid-3">
+            <div class="field-wrap">
+              <label for="s_hunter_api_key">Hunter.io Key (Domain Emails)</label>
+              <input id="s_hunter_api_key" type="password" autocomplete="off" placeholder="Optional">
+            </div>
+            <div class="field-wrap">
+              <label for="s_gemini_api_key">Gemini API Key (AI Pitch)</label>
+              <input id="s_gemini_api_key" type="password" autocomplete="off" placeholder="AIzaSy... (Optional)">
+            </div>
+            <div class="field-wrap">
+              <label for="s_groq_api_key">Groq API Key (Llama 3.3)</label>
+              <input id="s_groq_api_key" type="password" autocomplete="off" placeholder="gsk_... (Optional)">
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer" style="padding: 14px 0 0; border-top: 1px solid var(--line);">
+          <span id="sentLedgerCount" class="site-note">0 emails logged in deduplication guard</span>
+          <div class="modal-footer-right">
+            <button type="button" class="btn-secondary" id="cancelSettingsBtn">Cancel</button>
+            <button type="submit" class="btn-primary">Save Settings</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast" hidden></div>
+
   <script src="app.js"></script>
 </body>
 </html>
