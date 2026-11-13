@@ -644,6 +644,12 @@ tbody tr.row-contacted {
   color: var(--mute);
 }
 
+.email-badge.guessed {
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  border: 1px solid var(--warn-border);
+}
+
 .email-badge.err {
   background: var(--bad-bg);
   color: var(--bad-text);

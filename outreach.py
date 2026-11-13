@@ -23,6 +23,9 @@ SENT_LOG_FILE = DATA_DIR / "sent_emails.json"
 ENV_FILE = Path(__file__).parent / ".env"
 
 _LOCK = threading.Lock()
+_INFLIGHT_EMAILS = set()
+
+SECRET_KEYS = ("smtp_password", "hunter_api_key", "gemini_api_key", "groq_api_key")
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -90,16 +93,27 @@ def _load_dotenv():
     return env_vals
 
 
-def get_settings():
-    """Returns merged settings from defaults, .env, and settings.json."""
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+def _atomic_write_json(path, data):
+    """Writes JSON atomically via a temporary file in the same directory."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f".{path.name}.{threading.get_ident()}.tmp")
+    tmp_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    os.replace(tmp_path, path)
+
+
+def _read_settings_unlocked():
+    """Returns merged settings from defaults, .env/env vars, and settings.json."""
     s = dict(DEFAULT_SETTINGS)
     env = _load_dotenv()
     env_map = {
         "SENDER_NAME": "sender_name",
+        "SENDER_ROLE": "sender_role",
         "SENDER_PORTFOLIO": "sender_portfolio",
         "SENDER_COMPANY": "sender_company",
         "SENDER_COMPANY_URL": "sender_company_url",
+        "SENDER_PHONE": "sender_phone",
+        "PITCH_ANGLE": "pitch_angle",
+        "CUSTOM_OFFER": "custom_offer",
         "SMTP_EMAIL": "smtp_email",
         "SMTP_APP_PASSWORD": "smtp_password",
         "SMTP_HOST": "smtp_host",
@@ -127,41 +141,82 @@ def get_settings():
         try:
             saved = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
             if isinstance(saved, dict):
-                s.update(saved)
+                for k, v in saved.items():
+                    if k in DEFAULT_SETTINGS:
+                        s[k] = v
         except Exception:
             pass
     return s
 
 
-def save_settings(new_settings):
-    """Persists updated settings to data/settings.json."""
+def get_settings():
+    """Thread-safe merged settings reader."""
     with _LOCK:
-        current = get_settings()
+        return _read_settings_unlocked()
+
+
+def get_public_settings(settings=None):
+    """Returns settings safe to expose to the browser (secret values redacted)."""
+    s = dict(settings or get_settings())
+    configured = {k: bool(s.get(k)) for k in SECRET_KEYS}
+    for k in SECRET_KEYS:
+        s[k] = ""
+    s["configured_secrets"] = configured
+    return s
+
+
+def save_settings(new_settings):
+    """Persists updated settings to data/settings.json without leaking or wiping saved secrets."""
+    with _LOCK:
+        saved = {}
+        if SETTINGS_FILE.is_file():
+            try:
+                loaded = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    saved = loaded
+            except Exception:
+                saved = {}
+
         for k in DEFAULT_SETTINGS:
+            if k in SECRET_KEYS:
+                if new_settings.get(f"clear_{k}"):
+                    saved[k] = ""
+                elif k in new_settings:
+                    val = str(new_settings[k] or "").strip()
+                    if val:
+                        saved[k] = val
+                continue
+
             if k in new_settings:
                 val = new_settings[k]
                 if isinstance(DEFAULT_SETTINGS[k], bool):
-                    current[k] = bool(val) if not isinstance(val, str) else val.lower() in ("1", "true", "yes", "on")
+                    saved[k] = bool(val) if not isinstance(val, str) else val.lower() in ("1", "true", "yes", "on")
                 elif isinstance(DEFAULT_SETTINGS[k], int):
                     try:
-                        current[k] = int(val)
+                        saved[k] = int(val)
                     except (ValueError, TypeError):
-                        current[k] = DEFAULT_SETTINGS[k]
+                        saved[k] = DEFAULT_SETTINGS[k]
                 else:
-                    current[k] = str(val or "").strip()
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        SETTINGS_FILE.write_text(json.dumps(current, indent=2), encoding="utf-8")
-        return current
+                    saved[k] = str(val or "").strip()
+
+        _atomic_write_json(SETTINGS_FILE, saved)
+        return _read_settings_unlocked()
 
 
-def get_sent_ledger():
-    """Returns dict of {email_lower: {biz_name, ts, subject}}."""
+def _read_sent_ledger_unlocked():
     if SENT_LOG_FILE.is_file():
         try:
-            return json.loads(SENT_LOG_FILE.read_text(encoding="utf-8"))
+            data = json.loads(SENT_LOG_FILE.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
         except Exception:
             return {}
     return {}
+
+
+def get_sent_ledger():
+    """Returns dict of {email_lower: {biz_name, sent_at, subject}}."""
+    with _LOCK:
+        return _read_sent_ledger_unlocked()
 
 
 def mark_email_sent(email_addr, biz_name="", subject=""):
@@ -170,21 +225,21 @@ def mark_email_sent(email_addr, biz_name="", subject=""):
     if not email_key:
         return
     with _LOCK:
-        ledger = get_sent_ledger()
+        ledger = _read_sent_ledger_unlocked()
         ledger[email_key] = {
             "biz_name": biz_name,
             "subject": subject,
             "sent_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         }
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        SENT_LOG_FILE.write_text(json.dumps(ledger, indent=2), encoding="utf-8")
+        _atomic_write_json(SENT_LOG_FILE, ledger)
 
 
 def is_email_already_sent(email_addr):
     email_key = (email_addr or "").strip().lower()
     if not email_key:
         return False
-    return email_key in get_sent_ledger()
+    with _LOCK:
+        return email_key in _read_sent_ledger_unlocked()
 
 
 def extract_emails_from_text(text):
@@ -660,7 +715,7 @@ def calculate_lead_score(b):
         score = 40 + min(len(issues) * 5, 20)
 
     if b.get("email"):
-        score += 18
+        score += 6 if b.get("email_guessed") else 18
     if b.get("phone"):
         score += 10
     if b.get("socials"):
@@ -674,7 +729,7 @@ def calculate_lead_score(b):
 def generate_outreach(b, settings=None, angle_override=None):
     """
     Generates a high-converting, human-written Email Subject, Email Body, and Short DM/WhatsApp Pitch
-    strictly tailored to that specific business, its category problem, city, and live audit findings.
+    strictly tailored to that specific business, its category problem, city, live audit findings, and pitch angle.
     """
     s = settings or get_settings()
     biz_name = (b.get("name") or "there").strip()
@@ -694,7 +749,9 @@ def generate_outreach(b, settings=None, angle_override=None):
     sender_company = s.get("sender_company") or "Hackverse Technologies"
     sender_portfolio = s.get("sender_portfolio") or "https://frankoge.com"
     custom_offer = (s.get("custom_offer") or "").strip()
-    angle = angle_override or s.get("pitch_angle") or "auto"
+    angle = (angle_override or s.get("pitch_angle") or "auto").strip() or "auto"
+    if angle == "custom" and not custom_offer:
+        angle = "auto"
 
     sig_lines = [f"Best regards,\n{sender_name}"]
     if sender_company:
@@ -737,7 +794,58 @@ def generate_outreach(b, settings=None, angle_override=None):
     # =========================================================================
     # CASE 1: NO WEBSITE
     # =========================================================================
-    if status == "no_website" and angle in ("auto", "web_design"):
+    if status == "no_website":
+        if angle == "ai_automation":
+            subject = f"24/7 AI reception & WhatsApp booking for {biz_name} ({city})"
+            body = (
+                f"Hi {biz_name} team,\n\n"
+                f"I spotted {biz_name} while looking up {raw_cat}s in {city} on Google Maps{rating_line}.\n\n"
+                f"I noticed there isn't a website or instant booking channel linked to your listing yet — meaning after-hours inquiries and weekend searchers in {city} often go unanswered until reception opens.\n\n"
+                f"I build automated 24/7 AI reception & WhatsApp booking hubs for {raw_cat}s that answer common customer questions, qualify inquiries, and book appointments automatically.\n\n"
+                f"Would you be open to seeing a quick interactive demo customized for {biz_name}?\n\n"
+                f"{signature}"
+            )
+            dm = (
+                f"Hi {biz_name} team! Found your listing in {city} on Maps{rating_line}. "
+                f"Noticed there's no website or 24/7 booking link yet for after-hours inquiries. "
+                f"I put together a quick AI & WhatsApp booking flow concept for {biz_name} — mind if I share a demo link? — {sender_name} ({sender_portfolio})"
+            )
+            return {"subject": subject, "body": body, "dm": dm}
+
+        if angle == "local_seo":
+            subject = f"Ranking {biz_name} higher on Google Maps in {city}"
+            body = (
+                f"Hi {biz_name} team,\n\n"
+                f"I came across {biz_name} while searching for {raw_cat}s in {city} on Google Maps{rating_line}.\n\n"
+                f"Because your listing doesn't currently have a website with LocalBusiness schema linked to it, Google often ranks nearby competitors ahead of you in the Local 3-Pack for '{raw_cat} in {city}'.\n\n"
+                f"I specialize in Local SEO + high-speed landing pages that feed Google exact service, location, and trust signals so {biz_name} captures more organic Maps calls.\n\n"
+                f"Mind if I send a 2-minute breakdown of how we can boost {biz_name}'s Maps visibility?\n\n"
+                f"{signature}"
+            )
+            dm = (
+                f"Hi {biz_name} team! Found you in {city} on Google Maps{rating_line}. "
+                f"Without a website & Local SEO schema linked, Google often favors competitors in the Top 3 map results. "
+                f"Mind if I share a quick Maps ranking breakdown for {biz_name}? — {sender_name} ({sender_portfolio})"
+            )
+            return {"subject": subject, "body": body, "dm": dm}
+
+        if angle == "ads_funnel":
+            subject = f"Turning local {city} searches into booked clients for {biz_name}"
+            body = (
+                f"Hi {biz_name} team,\n\n"
+                f"I found {biz_name} while researching top {raw_cat}s in {city}{rating_line}.\n\n"
+                f"I noticed you don't have a dedicated landing page or retargeting funnel linked to your Maps profile yet — which makes it tough to capture and re-engage local customers searching in {city}.\n\n"
+                f"I put together a focused 1-page conversion funnel concept for {biz_name} designed for instant WhatsApp/call leads and low-cost Meta & Google retargeting.\n\n"
+                f"Open to taking a quick look at the mockup? No obligation.\n\n"
+                f"{signature}"
+            )
+            dm = (
+                f"Hi {biz_name} team! Spotted you in {city}{rating_line}. "
+                f"Noticed you don't have a lead-capture funnel linked yet for local searchers. "
+                f"I mocked up a clean 1-page offer & retargeting funnel for {biz_name} — can I send the preview? — {sender_name} ({sender_portfolio})"
+            )
+            return {"subject": subject, "body": body, "dm": dm}
+
         if is_clinic:
             subject = f"Capturing after-hours patient inquiries for {biz_name} ({city})"
             body = (
@@ -786,6 +894,36 @@ def generate_outreach(b, settings=None, angle_override=None):
                 f"I mocked up a visual mobile lookbook & WhatsApp ordering layout for {biz_name}. "
                 f"Mind if I send the preview link? — {sender_name} ({sender_portfolio})"
             )
+        elif is_fitness:
+            subject = f"Free trial passes & membership signups for {biz_name} ({city})"
+            body = (
+                f"Hi {biz_name} team,\n\n"
+                f"I came across {biz_name} while searching for {raw_cat} spots in {city} on Google Maps{rating_line}.\n\n"
+                f"I noticed you don't have a website linked to your listing yet. Local residents searching Google for a {raw_cat} in {city} usually want to check class times, membership rates, and claim a trial pass right away.\n\n"
+                f"I put together a clean, mobile-first website & trial-pass capture layout for {biz_name} with instant WhatsApp inquiry.\n\n"
+                f"Mind if I share a quick preview link for you to see? Zero obligation.\n\n"
+                f"{signature}"
+            )
+            dm = (
+                f"Hey {biz_name} team! Found you in {city} on Google Maps{rating_line}. "
+                f"Noticed there's no website linked yet for people checking class schedules & trial passes. "
+                f"I mocked up a fast trial-pass & WhatsApp signup site for {biz_name} — can I send the preview? — {sender_name} ({sender_portfolio})"
+            )
+        elif is_trades:
+            subject = f"Instant quote requests & click-to-call for {biz_name} ({city})"
+            body = (
+                f"Hi {biz_name} team,\n\n"
+                f"I found {biz_name} while looking up {raw_cat} services in {city} on Google Maps{rating_line}.\n\n"
+                f"I noticed you don't currently have a website linked to your listing. When local homeowners or drivers in {city} have an urgent job, they check listings with a clean site showing services, service areas, and 1-tap WhatsApp or call buttons.\n\n"
+                f"I drafted a fast, no-nonsense website mockup for {biz_name} built to capture emergency calls and instant quote requests.\n\n"
+                f"Would you like me to send over the preview link?\n\n"
+                f"{signature}"
+            )
+            dm = (
+                f"Hi {biz_name} team! Spotted your {raw_cat} listing in {city} on Maps{rating_line}. "
+                f"Noticed you don't have a website linked yet for quick quote requests & emergency calls. "
+                f"I mocked up a clean, mobile-ready site for {biz_name} — mind if I send the link? — {sender_name} ({sender_portfolio})"
+            )
         else:
             subject = f"Quick question about {biz_name} ({city})"
             body = (
@@ -807,7 +945,55 @@ def generate_outreach(b, settings=None, angle_override=None):
     # =========================================================================
     # CASE 2: SOCIAL ONLY (Instagram / Facebook / Linktree)
     # =========================================================================
-    if status == "social_only" and angle in ("auto", "web_design"):
+    if status == "social_only":
+        if angle == "ai_automation":
+            subject = f"Automating {biz_name}'s {platform} DMs & WhatsApp bookings"
+            body = (
+                f"Hi {biz_name} team,\n\n"
+                f"I checked out {biz_name}'s {platform} page in {city}{rating_line} — great presence!\n\n"
+                f"Since your web link points to {platform}, I'm guessing a lot of client questions, pricing checks, and booking requests pile up manually in DMs — especially after hours.\n\n"
+                f"I set up 24/7 AI reception & WhatsApp booking workflows that plug right into your {platform} bio so customers get instant answers and confirmed slots automatically.\n\n"
+                f"Open to seeing a 1-minute demo tailored for {biz_name}?\n\n"
+                f"{signature}"
+            )
+            dm = (
+                f"Hey {biz_name} team! Love your {platform} page. Since you're sending traffic here, I thought you might appreciate an automated WhatsApp/DM booking flow that answers FAQs & books clients 24/7. "
+                f"Mind if I share a quick demo? — {sender_name} ({sender_portfolio})"
+            )
+            return {"subject": subject, "body": body, "dm": dm}
+
+        if angle == "local_seo":
+            subject = f"Capturing Google Maps traffic alongside {biz_name}'s {platform}"
+            body = (
+                f"Hi {biz_name} team,\n\n"
+                f"I spotted {biz_name} in {city} and checked out your {platform} page{rating_line}.\n\n"
+                f"Relying solely on {platform} works well for followers, but Google rarely ranks social profiles in the Local 3-Pack for '{raw_cat} in {city}' — meaning high-intent Google searchers often miss you.\n\n"
+                f"I build fast, Local-SEO-optimized microsites with Google Schema that complement your {platform} and push {biz_name} up the local search rankings.\n\n"
+                f"Can I send over a quick preview showing how this pairs with your {platform}?\n\n"
+                f"{signature}"
+            )
+            dm = (
+                f"Hey {biz_name} team! Great {platform} page. Just noticed Google Maps usually ranks dedicated local sites above social links for '{raw_cat} in {city}'. "
+                f"I sketched a Local-SEO landing page that pairs with your {platform} — mind if I share it? — {sender_name} ({sender_portfolio})"
+            )
+            return {"subject": subject, "body": body, "dm": dm}
+
+        if angle == "ads_funnel":
+            subject = f"Turning {biz_name}'s {platform} visitors into tracked bookings"
+            body = (
+                f"Hi {biz_name} team,\n\n"
+                f"Loved seeing {biz_name}'s {platform} presence in {city}{rating_line}.\n\n"
+                f"Right now, without a dedicated landing page carrying a Meta/Google retargeting pixel, anyone who checks your {platform} or Maps listing and gets distracted is hard to follow up with.\n\n"
+                f"I build fast bio-link conversion funnels with built-in retargeting pixels and 1-tap booking so your {platform} and Google traffic converts consistently.\n\n"
+                f"Mind if I share a quick visual mockup for {biz_name}?\n\n"
+                f"{signature}"
+            )
+            dm = (
+                f"Hey {biz_name} team! Love your {platform}. Noticed you don't have a pixel-tracked booking funnel behind your bio link yet to re-engage visitors. "
+                f"I mocked up a quick funnel concept for {biz_name} — can I send it over? — {sender_name} ({sender_portfolio})"
+            )
+            return {"subject": subject, "body": body, "dm": dm}
+
         if is_salon:
             subject = f"Cutting out DM phone-tag for {biz_name} in {city}"
             body = (
@@ -843,8 +1029,56 @@ def generate_outreach(b, settings=None, angle_override=None):
     # =========================================================================
     # CASE 3: BROKEN WEBSITE
     # =========================================================================
-    if status == "broken" and angle in ("auto", "web_design", "redesign"):
+    if status == "broken":
         err_desc = site_note.lower() if site_note else "not loading properly"
+        if angle == "ai_automation":
+            subject = f"{biz_name}'s website link is down — quick fix + 24/7 WhatsApp capture"
+            body = (
+                f"Hi {biz_name} team,\n\n"
+                f"Quick heads-up — I clicked through to {biz_name}'s website ({clean_domain or website}) in {city}{rating_line}, and it's currently returning an error ({site_note or err_desc}).\n\n"
+                f"Right now, anyone trying to reach you from Google Maps hits a dead link instead of booking or messaging you.\n\n"
+                f"I can help get the link back online fast and plug in an instant 24/7 WhatsApp & AI booking widget so you never lose another after-hours inquiry.\n\n"
+                f"Want me to send over details on the error and a working preview?\n\n"
+                f"{signature}"
+            )
+            dm = (
+                f"Hey {biz_name} team! Quick heads-up: {clean_domain or 'your website link'} is currently down ({site_note or 'not loading'}). "
+                f"I can help fix it fast and set up a 24/7 WhatsApp/AI inquiry flow so Maps visitors convert instead of bouncing. Mind if I share details? — {sender_name} ({sender_portfolio})"
+            )
+            return {"subject": subject, "body": body, "dm": dm}
+
+        if angle == "local_seo":
+            subject = f"Broken site alert ({clean_domain or biz_name}) hurting Google Maps rank in {city}"
+            body = (
+                f"Hi {biz_name} team,\n\n"
+                f"Quick heads-up — I noticed {biz_name}'s linked website ({clean_domain or website}) in {city}{rating_line} is currently throwing an error ({site_note or err_desc}).\n\n"
+                f"Beyond frustrating customers clicking from Maps, dead or parked links actively hurt your Local SEO and push your listing down in Google search results for '{raw_cat} in {city}'.\n\n"
+                f"I can help diagnose and restore your site (or launch a fast, LocalBusiness-schema-ready replacement) within 24 hours.\n\n"
+                f"Want me to send over what's causing the error?\n\n"
+                f"{signature}"
+            )
+            dm = (
+                f"Hey {biz_name} team! Heads-up: your site ({clean_domain or 'on Maps'}) is throwing an error ({site_note or 'not loading'}), which hurts Google Maps Local SEO in {city}. "
+                f"Mind if I send details on what's causing it and how to fix it fast? — {sender_name} ({sender_portfolio})"
+            )
+            return {"subject": subject, "body": body, "dm": dm}
+
+        if angle == "ads_funnel":
+            subject = f"Heads up: {biz_name}'s site link is down (wasting Maps traffic)"
+            body = (
+                f"Hi {biz_name} team,\n\n"
+                f"Quick heads-up — while looking up {biz_name} in {city}{rating_line}, I tried opening {clean_domain or website} and hit an error ({site_note or err_desc}).\n\n"
+                f"Any high-intent customer clicking your Google Maps button or ads right now lands on a dead page instead of a conversion funnel.\n\n"
+                f"I already mocked up a fast, pixel-ready replacement landing funnel for {biz_name} (or I can troubleshoot your current domain right away).\n\n"
+                f"Would you like me to send the preview link and error details?\n\n"
+                f"{signature}"
+            )
+            dm = (
+                f"Hey {biz_name} team! Heads-up: {clean_domain or 'your website link'} is currently down ({site_note or 'not loading'}), so Maps clicks are hitting a dead end. "
+                f"I mocked up a clean conversion-funnel replacement (or can help fix the domain) — want to see it? — {sender_name} ({sender_portfolio})"
+            )
+            return {"subject": subject, "body": body, "dm": dm}
+
         subject = f"Heads up: {biz_name}'s website link ({clean_domain or 'on Google Maps'}) is down"
         body = (
             f"Hi {biz_name} team,\n\n"
@@ -864,6 +1098,88 @@ def generate_outreach(b, settings=None, angle_override=None):
     # =========================================================================
     # CASE 4: WORKING WEBSITE (CONVERSION AUDIT UPGRADES)
     # =========================================================================
+    site_ref = clean_domain or f"{biz_name}'s website"
+
+    if angle == "ai_automation":
+        has_chat_gap = any("Chat" in iss or "Booking" in iss for iss in audit_issues)
+        gap_note = (
+            "I noticed there isn't an instant WhatsApp / AI chat or 1-click booking flow active on the page right now"
+            if has_chat_gap
+            else "adding a faster 24/7 AI reception & WhatsApp booking flow could capture significantly more after-hours visitors"
+        )
+        subject = f"Adding 24/7 AI & WhatsApp booking to {site_ref}"
+        body = (
+            f"Hi {biz_name} team,\n\n"
+            f"I was checking out {site_ref} after finding {biz_name} in {city}{rating_line}.\n\n"
+            f"Your site gives a great overview, though {gap_note}. Mobile visitors searching in the evenings often bounce if they can't get an instant answer or book without calling.\n\n"
+            f"I put together a quick interactive preview showing how a 24/7 AI receptionist + WhatsApp booking widget would fit right onto {site_ref}.\n\n"
+            f"Mind if I send that preview over for you to test?\n\n"
+            f"{signature}"
+        )
+        dm = (
+            f"Hi {biz_name} team! Checked out {site_ref} in {city}{rating_line}. "
+            f"I mocked up a quick 24/7 AI & WhatsApp booking widget tailored for {site_ref} to capture after-hours visitors without phone tag — mind if I send the preview? — {sender_name} ({sender_portfolio})"
+        )
+        return {"subject": subject, "body": body, "dm": dm}
+
+    if angle == "local_seo":
+        seo_gaps = [i for i in audit_issues if any(k in i for k in ("Schema", "Meta", "Slow Load", "SSL", "Mobile"))]
+        gap_summary = " and ".join(seo_gaps[:2]) if seo_gaps else "missing LocalBusiness schema & on-page search signals"
+        subject = f"Boosting {site_ref} into the {city} Google Maps Top 3"
+        body = (
+            f"Hi {biz_name} team,\n\n"
+            f"I came across {biz_name} in {city}{rating_line} and took a quick look at {site_ref}.\n\n"
+            f"While auditing the site, I spotted a couple of technical SEO gaps ({gap_summary}) that typically hold local businesses back from ranking in the Google Maps Top-3 Pack for '{raw_cat} in {city}'.\n\n"
+            f"I put together a quick 1-page SEO checklist specifically for {site_ref} showing what to fix first.\n\n"
+            f"Mind if I send it over? Zero obligation.\n\n"
+            f"{signature}"
+        )
+        dm = (
+            f"Hi {biz_name} team! Checked out {site_ref} in {city}{rating_line}. "
+            f"Spotted a couple of Local SEO fixes ({gap_summary}) that could move {biz_name} higher on Google Maps. Mind if I share the quick checklist? — {sender_name} ({sender_portfolio})"
+        )
+        return {"subject": subject, "body": body, "dm": dm}
+
+    if angle == "ads_funnel":
+        has_pixel_gap = any("Pixel" in iss for iss in audit_issues)
+        pixel_line = (
+            f"I noticed {site_ref} doesn't currently have a Meta or Google retargeting pixel firing"
+            if has_pixel_gap
+            else f"pairing {site_ref} with a focused retargeting & lead-capture funnel"
+        )
+        subject = f"Recovering lost website visitors on {site_ref}"
+        body = (
+            f"Hi {biz_name} team,\n\n"
+            f"I was checking out {site_ref} after finding {biz_name} in {city}{rating_line}.\n\n"
+            f"Over 90% of local visitors leave a site without calling or booking on their first visit — and {pixel_line}, so those potential clients in {city} aren't being re-engaged.\n\n"
+            f"I mapped out a simple conversion + retargeting funnel concept for {site_ref} to turn existing traffic into predictable weekly bookings.\n\n"
+            f"Would you like me to send over the brief breakdown?\n\n"
+            f"{signature}"
+        )
+        dm = (
+            f"Hi {biz_name} team! Checked out {site_ref} in {city}{rating_line}. "
+            f"Spotted an easy win to capture & retarget the 90% of visitors who browse without booking right away. Mind if I send a quick breakdown? — {sender_name} ({sender_portfolio})"
+        )
+        return {"subject": subject, "body": body, "dm": dm}
+
+    if angle in ("web_design", "redesign"):
+        design_gaps = [i for i in audit_issues if any(k in i for k in ("Mobile", "Slow Load", "SSL", "Outdated", "Booking", "Chat"))]
+        gap_text = ", ".join(design_gaps[:2]) if design_gaps else "mobile speed and modern conversion layout"
+        subject = f"Modern redesign concept for {site_ref}"
+        body = (
+            f"Hi {biz_name} team,\n\n"
+            f"I found {biz_name} in {city}{rating_line} and had a look at {site_ref}.\n\n"
+            f"Your business has a strong local reputation, though {site_ref} could convert noticeably more mobile visitors by tightening up {gap_text}.\n\n"
+            f"I put together a clean, modern redesign concept specifically for {biz_name} so your website reflects the same quality clients experience in person.\n\n"
+            f"Mind if I send over the preview link?\n\n"
+            f"{signature}"
+        )
+        dm = (
+            f"Hi {biz_name} team! Looked at {site_ref} in {city}{rating_line}. "
+            f"Put together a modern, mobile-fast redesign concept addressing {gap_text} — mind if I share the preview link? — {sender_name} ({sender_portfolio})"
+        )
+        return {"subject": subject, "body": body, "dm": dm}
+
     issue_explanations = {
         "No WhatsApp / AI Chat Widget": f"Adding a 24/7 instant WhatsApp / AI inquiry widget so mobile visitors asking questions after-hours get answered immediately instead of bouncing",
         "No Online Booking System": f"Adding a 1-click online booking/appointment calendar so clients in {city} can book without having to call reception first",
@@ -906,7 +1222,6 @@ def generate_outreach(b, settings=None, angle_override=None):
             ]
 
     bullet_block = "\n".join(bullets[:2])
-    site_ref = clean_domain or f"{biz_name}'s website"
 
     subject = f"2 quick conversion wins I spotted on {site_ref}"
     body = (
@@ -1007,7 +1322,7 @@ def generate_ai_outreach(b, settings=None, angle_override=None):
 def send_smtp_email(to_email, subject, body, biz_name="", force=False):
     """
     Sends an email via configured SMTP.
-    Enforces single-send deduplication unless force=True (manual user click).
+    Enforces atomic single-send deduplication across threads unless force=True (manual user click).
     Returns dict: {ok, status, message}
     """
     s = get_settings()
@@ -1015,11 +1330,17 @@ def send_smtp_email(to_email, subject, body, biz_name="", force=False):
     if not to_clean or "@" not in to_clean:
         return {"ok": False, "status": "no_email", "message": "No valid recipient email."}
 
-    if not force and is_email_already_sent(to_clean):
-        return {"ok": True, "status": "already_sent", "message": f"Already emailed {to_clean} previously (skipped)."}
-
     if s.get("dry_run"):
-        mark_email_sent(to_clean, biz_name, subject)
+        with _LOCK:
+            if not force and (to_clean in _INFLIGHT_EMAILS or to_clean in _read_sent_ledger_unlocked()):
+                return {"ok": True, "status": "already_sent", "message": f"Already emailed {to_clean} previously (skipped)."}
+            ledger = _read_sent_ledger_unlocked()
+            ledger[to_clean] = {
+                "biz_name": biz_name,
+                "subject": subject,
+                "sent_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            }
+            _atomic_write_json(SENT_LOG_FILE, ledger)
         return {"ok": True, "status": "simulated", "message": f"Dry-run simulated send to {to_clean}"}
 
     smtp_user = (s.get("smtp_email") or "").strip()
@@ -1034,6 +1355,14 @@ def send_smtp_email(to_email, subject, body, biz_name="", force=False):
             "status": "unconfigured",
             "message": "SMTP email/password not configured. Open Outreach Settings to add your Gmail App Password or use 'Mail App'.",
         }
+
+    reserved = False
+    with _LOCK:
+        if not force and (to_clean in _INFLIGHT_EMAILS or to_clean in _read_sent_ledger_unlocked()):
+            return {"ok": True, "status": "already_sent", "message": f"Already emailed {to_clean} previously (skipped)."}
+        if to_clean not in _INFLIGHT_EMAILS:
+            _INFLIGHT_EMAILS.add(to_clean)
+            reserved = True
 
     msg = EmailMessage()
     msg["From"] = f"{sender_name} <{smtp_user}>" if sender_name else smtp_user
@@ -1058,3 +1387,7 @@ def send_smtp_email(to_email, subject, body, biz_name="", force=False):
         return {"ok": True, "status": "sent", "message": f"Sent to {to_clean}"}
     except Exception as e:
         return {"ok": False, "status": "error", "message": f"SMTP error: {str(e)[:120]}"}
+    finally:
+        if reserved:
+            with _LOCK:
+                _INFLIGHT_EMAILS.discard(to_clean)

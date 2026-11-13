@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import ssl
 import threading
@@ -17,6 +18,9 @@ import providers
 STATIC = (Path(__file__).parent / "static").resolve()
 TYPES = {".html": "text/html", ".css": "text/css", ".js": "text/javascript"}
 JOBS, POOL = {}, ThreadPoolExecutor(12)
+JOBS_LOCK = threading.Lock()
+MAX_JOBS = 50
+MAX_REQUEST_BYTES = 1_048_576
 
 SOCIAL = re.compile(
     r"facebook\.com|instagram\.com|linktr\.ee|wa\.me|twitter\.com|//x\.com|tiktok\.com|youtube\.com|linkedin\.com|threads\.net",
@@ -209,15 +213,25 @@ def extract_page_emails(html):
     return raw_mails
 
 
-def check_site(url, biz_name="", city="", wikidata_id="", category="", existing_socials=(), existing_phone="", settings=None):
+def check_site(
+    url,
+    biz_name="",
+    city="",
+    wikidata_id="",
+    category="",
+    existing_socials=(),
+    existing_phone="",
+    existing_email="",
+    settings=None,
+):
     """
     Performs full website verification, live technical/conversion audit, and aggressive multi-channel email/social hunting.
-    Returns (status, note, socials, emails_str, verified_url, audit_issues, discovered_phone).
+    Returns (status, note, socials, emails_str, verified_url, audit_issues, discovered_phone, email_guessed).
     """
     s = settings or outreach.get_settings()
     url = (url or "").strip()
     socials = list(existing_socials or [])
-    emails = []
+    emails = outreach.filter_valid_emails((existing_email or "").split(","))
     discovered_phone = existing_phone or ""
 
     # 1. Check Wikidata if available
@@ -261,6 +275,7 @@ def check_site(url, biz_name="", city="", wikidata_id="", category="", existing_
                 url if (url and SOCIAL.search(url)) else (clean_socs[0] if clean_socs else ""),
                 ["No Dedicated Website", "Relying on Social Links Only"],
                 discovered_phone,
+                False,
             )
         return (
             "no_website",
@@ -270,6 +285,7 @@ def check_site(url, biz_name="", city="", wikidata_id="", category="", existing_
             "",
             ["Zero Web Presence", "Missing Google Maps Website"],
             discovered_phone,
+            False,
         )
 
     # 4. Fetch and verify regular website
@@ -293,6 +309,7 @@ def check_site(url, biz_name="", city="", wikidata_id="", category="", existing_
             url,
             [f"Broken Site ({note})"],
             discovered_phone,
+            False,
         )
 
     # Check for HTML meta-refresh redirect (1 hop)
@@ -303,7 +320,7 @@ def check_site(url, biz_name="", city="", wikidata_id="", category="", existing_
             redirect_target = urllib.parse.urljoin(final_url, redirect_target)
         r_html, r_final, r_note, r_working, r_code, r_elapsed = fetch_page(redirect_target, timeout=5)
         if r_working and r_html:
-            html, final_url, elapsed_sec = r_html, r_final, r_elapsed
+            html, final_url, note, code, elapsed_sec = r_html, r_final, r_note, r_code, r_elapsed
 
     # Check for Parked Domain / For Sale / Default server page
     if PARKED.search(html):
@@ -321,30 +338,37 @@ def check_site(url, biz_name="", city="", wikidata_id="", category="", existing_
             final_url,
             ["Expired / Parked Domain"],
             discovered_phone or hunted_phone,
+            False,
         )
 
-    if len(html.strip()) < 80 and not code:
+    is_protected_response = code in (401, 403, 429) and not html.strip()
+    if not is_protected_response and len(html.strip()) < 80:
+        clean_mails = outreach.filter_valid_emails(emails)
         return (
             "broken",
             "Empty page response",
             list(dict.fromkeys(socials))[:5],
-            "",
+            ", ".join(clean_mails[:3]),
             final_url,
             ["Blank / Broken Page"],
             discovered_phone,
+            False,
         )
 
     # 5. Extract emails from working homepage
-    raw_mails = extract_page_emails(html)
-    socials.extend(SOC.findall(html))
+    raw_mails = extract_page_emails(html) if html else []
+    if html:
+        socials.extend(SOC.findall(html))
 
     # 6. If no emails on homepage, crawl up to 4 high-value subpages (/contact, /about, /privacy, /impressum, /terms, /booking, /enquiries)
-    if not raw_mails:
+    if html and not raw_mails and not emails:
         contact_links = list(dict.fromkeys(CONTACT_LINK.findall(html)))[:4]
         for sub_raw in contact_links:
             sub_url = sub_raw.strip()
             if not sub_url.startswith("http"):
                 sub_url = urllib.parse.urljoin(final_url, sub_url)
+            if not sub_url.lower().startswith(("http://", "https://")):
+                continue
             try:
                 sub_req = urllib.request.Request(sub_url, headers=HEADERS)
                 with urllib.request.urlopen(sub_req, timeout=3.5, context=SSL_UNVERIFIED) as s_resp:
@@ -380,23 +404,28 @@ def check_site(url, biz_name="", city="", wikidata_id="", category="", existing_
         if hunted_phone and not discovered_phone:
             discovered_phone = hunted_phone
 
-    # 10. If still no email and site is on a genuine custom business domain, derive candidate domain emails
+    # 10. If still no email and site is on a genuine custom business domain, derive candidate domain emails (marked unverified)
+    email_guessed = False
     if not valid_emails:
         candidates = outreach.derive_domain_emails(final_url, category=category)
         if candidates:
             valid_emails.extend(candidates[:2])
+            email_guessed = True
 
-    # 11. Run Live Technical, SEO & Conversion Audit on the working website
-    audit_issues = outreach.audit_working_website(html, final_url, note, elapsed_sec, category)
+    # 11. Run Live Technical, SEO & Conversion Audit on the working website (skip HTML checks on WAF/bot-blocked responses)
+    if is_protected_response:
+        audit_issues = [f"Site Protected (HTTP {code} — Manual Review)"]
+    else:
+        audit_issues = outreach.audit_working_website(html, final_url, note, elapsed_sec, category)
 
     clean_socials = list(dict.fromkeys(socials))[:5]
     email_str = ", ".join(valid_emails[:3])
 
-    return "working", note, clean_socials, email_str, final_url, audit_issues, discovered_phone
+    return "working", note, clean_socials, email_str, final_url, audit_issues, discovered_phone, email_guessed
 
 
 def enrich(job, b, settings):
-    status, note, soc, mail, verified_url, audit_issues, disc_phone = check_site(
+    status, note, soc, mail, verified_url, audit_issues, disc_phone, email_guessed = check_site(
         b["website"],
         biz_name=b.get("name", ""),
         city=b.get("city", ""),
@@ -404,6 +433,7 @@ def enrich(job, b, settings):
         category=b.get("category", ""),
         existing_socials=b.get("socials", ()),
         existing_phone=b.get("phone", ""),
+        existing_email=b.get("email", ""),
         settings=settings,
     )
     b["site_status"] = status
@@ -414,11 +444,9 @@ def enrich(job, b, settings):
     if disc_phone and not b.get("phone"):
         b["phone"] = disc_phone
     b["socials"] = list(dict.fromkeys((b.get("socials") or []) + soc))[:5]
-    if b.get("email"):
-        combined = outreach.filter_valid_emails(b["email"].split(",") + (mail.split(",") if mail else []))
-        b["email"] = ", ".join(combined[:3])
-    else:
-        b["email"] = mail
+    b["email"] = mail
+    b["email_guessed"] = bool(mail and email_guessed)
+    b["email_verified"] = bool(mail and not email_guessed)
 
     # Resolve best 1-click DM link (Instagram / Facebook / X / LinkedIn / WhatsApp)
     b["dm_info"] = outreach.resolve_dm_channel(b["socials"], b.get("phone", ""))
@@ -430,7 +458,7 @@ def enrich(job, b, settings):
     b["outreach_body"] = pitch["body"]
     b["outreach_dm"] = pitch["dm"]
 
-    # Check if already emailed or if auto-send is enabled
+    # Check if already emailed or if auto-send is enabled (never auto-send to unverified/guessed emails)
     primary_email = (b["email"] or "").split(",")[0].strip().lower()
     b["email_status"] = ""
     b["email_status_note"] = ""
@@ -439,6 +467,9 @@ def enrich(job, b, settings):
         if outreach.is_email_already_sent(primary_email):
             b["email_status"] = "already_sent"
             b["email_status_note"] = f"Previously sent to {primary_email}"
+        elif b["email_guessed"]:
+            b["email_status"] = "guessed"
+            b["email_status_note"] = "Suggested domain email (unverified) — skipped by auto-send"
         elif settings.get("auto_send_email"):
             res = outreach.send_smtp_email(
                 primary_email,
@@ -450,32 +481,58 @@ def enrich(job, b, settings):
             b["email_status"] = res["status"]
             b["email_status_note"] = res["message"]
             if res.get("ok") and res["status"] in ("sent", "simulated"):
-                job["sent_count"] = job.get("sent_count", 0) + 1
+                with job["lock"]:
+                    job["sent_count"] = job.get("sent_count", 0) + 1
 
-    job["results"].append(b)
+    with job["lock"]:
+        job["results"].append(b)
 
 
 def run(job, p):
+    def set_msg(m):
+        with job["lock"]:
+            job["msg"] = m
+
     try:
         settings = outreach.get_settings()
         seen = set()
-        for b in providers.PROVIDERS[p["provider"]]["fn"](p, lambda m: job.update(msg=m)):
+        for b in providers.PROVIDERS[p["provider"]]["fn"](p, set_msg):
             if b["id"] in seen:
                 continue
             seen.add(b["id"])
-            job["found"] = len(seen)
-            job["futs"].append(POOL.submit(enrich, job, b, settings))
-        job["msg"] = "Hunting emails, auditing sites & preparing pitches"
-        for f in job["futs"]:
-            f.result()
-        job["msg"] = "Done"
+            with job["lock"]:
+                job["found"] = len(seen)
+                job["futs"].append(POOL.submit(enrich, job, b, settings))
+        set_msg("Hunting emails, auditing sites & preparing pitches")
+        with job["lock"]:
+            futs = list(job["futs"])
+        for f in futs:
+            try:
+                f.result()
+            except Exception:
+                pass
+        set_msg("Done")
     except Exception as e:
         err_msg = str(e)
         if "10060" in err_msg:
-            job["error"] = "Network timeout (WinError 10060): Unable to reach map server. Please check your internet connection."
-        else:
+            err_msg = "Network timeout (WinError 10060): Unable to reach map server. Please check your internet connection."
+        with job["lock"]:
             job["error"] = err_msg
-    job["done"] = True
+    finally:
+        with job["lock"]:
+            job["done"] = True
+
+
+def _prune_old_jobs():
+    with JOBS_LOCK:
+        if len(JOBS) < MAX_JOBS:
+            return
+        completed_ids = [
+            jid for jid, j in sorted(JOBS.items(), key=lambda kv: kv[1].get("created_at", 0))
+            if j.get("done")
+        ]
+        for jid in completed_ids[: max(1, len(JOBS) - MAX_JOBS + 1)]:
+            JOBS.pop(jid, None)
 
 
 class H(BaseHTTPRequestHandler):
@@ -488,8 +545,13 @@ class H(BaseHTTPRequestHandler):
         self.wfile.write(b)
 
     def read_json(self):
-        length = int(self.headers.get("Content-Length") or 0)
-        if length <= 0:
+        raw_len = self.headers.get("Content-Length")
+        if raw_len is None:
+            return {}
+        length = int(raw_len)
+        if length < 0 or length > MAX_REQUEST_BYTES:
+            raise ValueError("Invalid Content-Length")
+        if length == 0:
             return {}
         return json.loads(self.rfile.read(length))
 
@@ -501,19 +563,26 @@ class H(BaseHTTPRequestHandler):
                 [{"id": k, "label": v["label"], "key": v["key"]} for k, v in providers.PROVIDERS.items()],
             )
         if u.path == "/api/settings":
-            s = outreach.get_settings()
+            s = outreach.get_public_settings()
             ledger = outreach.get_sent_ledger()
             return self.reply(200, {"settings": s, "sent_total": len(ledger)})
         if u.path.startswith("/api/job/"):
-            j = JOBS.get(u.path.split("/")[-1])
+            jid = u.path.split("/")[-1]
+            with JOBS_LOCK:
+                j = JOBS.get(jid)
             if not j:
                 return self.reply(404, {"error": "Unknown job"})
-            since = int(urllib.parse.parse_qs(u.query).get("since", [0])[0])
-            return self.reply(
-                200,
-                {k: j[k] for k in ("msg", "found", "done", "error", "sent_count")}
-                | {"results": j["results"][since:]},
-            )
+            try:
+                since = int(urllib.parse.parse_qs(u.query).get("since", [0])[0])
+                if since < 0:
+                    raise ValueError("negative")
+            except ValueError:
+                return self.reply(400, {"error": "Invalid since parameter"})
+            with j["lock"]:
+                payload = {k: j[k] for k in ("msg", "found", "done", "error", "sent_count")} | {
+                    "results": list(j["results"][since:])
+                }
+            return self.reply(200, payload)
         f = (STATIC / ("index.html" if u.path == "/" else u.path.lstrip("/"))).resolve()
         if f.is_file() and STATIC in f.parents:
             return self.reply(200, f.read_bytes(), TYPES.get(f.suffix, "application/octet-stream"))
@@ -525,11 +594,13 @@ class H(BaseHTTPRequestHandler):
             p = self.read_json()
         except Exception as e:
             return self.reply(400, {"error": f"Invalid JSON: {e}"})
+        if not isinstance(p, dict):
+            return self.reply(400, {"error": "JSON body must be an object"})
 
         if u.path == "/api/settings":
             updated = outreach.save_settings(p)
             ledger = outreach.get_sent_ledger()
-            return self.reply(200, {"ok": True, "settings": updated, "sent_total": len(ledger)})
+            return self.reply(200, {"ok": True, "settings": outreach.get_public_settings(updated), "sent_total": len(ledger)})
 
         if u.path == "/api/send-email":
             res = outreach.send_smtp_email(
@@ -542,7 +613,7 @@ class H(BaseHTTPRequestHandler):
             return self.reply(200 if res.get("ok") else 400, res)
 
         if u.path == "/api/test-smtp":
-            if p.get("settings"):
+            if isinstance(p.get("settings"), dict):
                 outreach.save_settings(p["settings"])
             s = outreach.get_settings()
             target = (p.get("to") or s.get("smtp_email") or "").strip()
@@ -568,24 +639,41 @@ class H(BaseHTTPRequestHandler):
             )
             return self.reply(200, {"ok": True, **pitch})
 
-        # Default: /api/start
-        jid = uuid.uuid4().hex[:8]
-        JOBS[jid] = job = {
-            "results": [],
-            "futs": [],
-            "msg": "Starting",
-            "found": 0,
-            "sent_count": 0,
-            "done": False,
-            "error": None,
-        }
-        threading.Thread(target=run, args=(job, p), daemon=True).start()
-        self.reply(200, {"id": jid})
+        if u.path == "/api/start":
+            provider_id = (p.get("provider") or "").strip()
+            city = (p.get("city") or "").strip()
+            category = (p.get("category") or "").strip()
+            if provider_id not in providers.PROVIDERS:
+                return self.reply(400, {"error": f"Unknown provider: {provider_id}"})
+            if not city or not category:
+                return self.reply(400, {"error": "Both 'city' and 'category' are required."})
+
+            _prune_old_jobs()
+            jid = uuid.uuid4().hex[:8]
+            job = {
+                "results": [],
+                "futs": [],
+                "msg": "Starting",
+                "found": 0,
+                "sent_count": 0,
+                "done": False,
+                "error": None,
+                "created_at": time.time(),
+                "lock": threading.Lock(),
+            }
+            with JOBS_LOCK:
+                JOBS[jid] = job
+            threading.Thread(target=run, args=(job, p), daemon=True).start()
+            return self.reply(200, {"id": jid})
+
+        return self.reply(404, {"error": "Not found"})
 
     def log_message(self, *a):
         pass
 
 
 if __name__ == "__main__":
-    print("LeadFinder running at http://localhost:8000")
-    ThreadingHTTPServer(("127.0.0.1", 8000), H).serve_forever()
+    host = os.environ.get("HOST", "127.0.0.1")
+    port = int(os.environ.get("PORT", "8000"))
+    print(f"LeadFinder running at http://{host}:{port}")
+    ThreadingHTTPServer((host, port), H).serve_forever()

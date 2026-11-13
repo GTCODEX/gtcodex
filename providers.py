@@ -326,6 +326,27 @@ OVERPASS_SERVERS = [
 
 URL_REGEX = re.compile(r'https?://[^\s"\'<>]+', re.I)
 
+
+def sanitize_http_url(raw_url):
+    """Allows only http/https URLs (or bare hostnames normalized to https://), rejecting unsafe schemes."""
+    u = (raw_url or "").strip()
+    if not u:
+        return ""
+    low = u.lower()
+    if "://" in low:
+        return u if low.startswith(("http://", "https://")) else ""
+    if ":" in low.split("/")[0]:
+        return ""
+    if "." in u.split("/")[0]:
+        return "https://" + u
+    return ""
+
+
+def escape_overpass_regex(text):
+    """Escapes OverpassQL string quotes/backslashes and regex metacharacters."""
+    return re.sub(r'([\\".+*?^$()\[\]{}|])', r'\\\1', (text or "").strip())
+
+
 def parse_osm_element(x, city):
     t = x.get("tags", {})
     name = t.get("name") or t.get("official_name")
@@ -333,7 +354,7 @@ def parse_osm_element(x, city):
     c = x.get("center") or x
     addr = " ".join(filter(None, [t.get("addr:housenumber"), t.get("addr:street"), t.get("addr:suburb"), t.get("addr:city")]))
     
-    website = (
+    website = sanitize_http_url(
         t.get("website") or 
         t.get("contact:website") or 
         t.get("url") or 
@@ -342,12 +363,12 @@ def parse_osm_element(x, city):
         t.get("operator:website") or 
         t.get("website:menu") or 
         t.get("menu") or ""
-    ).strip()
+    )
 
     if not website:
         extra_text = " ".join(filter(None, [t.get("description"), t.get("note"), t.get("comment"), t.get("source")]))
         m = URL_REGEX.search(extra_text)
-        if m: website = m.group(0).strip()
+        if m: website = sanitize_http_url(m.group(0))
 
     soc = []
     for k in ("contact:facebook", "facebook", "facebook:url",
@@ -360,14 +381,22 @@ def parse_osm_element(x, city):
         v = t.get(k)
         if v:
             v = v.strip()
-            if not v.startswith("http"):
+            low_v = v.lower()
+            if ":" in v.split("/")[0] and not low_v.startswith(("http://", "https://")):
+                continue
+            if not low_v.startswith(("http://", "https://")):
                 if "facebook" in k: v = "https://facebook.com/" + v.lstrip("@")
                 elif "instagram" in k: v = "https://instagram.com/" + v.lstrip("@")
-                elif "twitter" in k or "x" in k: v = "https://twitter.com/" + v.lstrip("@")
+                elif "twitter" in k or k in ("contact:x", "x"): v = "https://twitter.com/" + v.lstrip("@")
                 elif "tiktok" in k: v = "https://tiktok.com/@" + v.lstrip("@")
                 elif "linkedin" in k: v = "https://linkedin.com/company/" + v.lstrip("@")
-                elif "whatsapp" in k: v = "https://wa.me/" + re.sub(r"\D", "", v)
-            soc.append(v)
+                elif "youtube" in k: v = "https://youtube.com/@" + v.lstrip("@")
+                elif "whatsapp" in k:
+                    digits = re.sub(r"\D", "", v)
+                    v = f"https://wa.me/{digits}" if digits else ""
+            v = sanitize_http_url(v)
+            if v:
+                soc.append(v)
 
     phone = (t.get("phone") or t.get("contact:phone") or t.get("contact:mobile") or t.get("mobile") or "").strip()
     email = (t.get("email") or t.get("contact:email") or t.get("operator:email") or "").strip()
@@ -395,24 +424,31 @@ def parse_nominatim_results(items, category_fallback, city):
             addr_dict.get("suburb"),
             addr_dict.get("city") or addr_dict.get("town") or addr_dict.get("state")
         ]))
-        website = (
+        website = sanitize_http_url(
             tags.get("website") or
             tags.get("contact:website") or
             tags.get("url") or
             tags.get("contact:url") or ""
-        ).strip()
+        )
         soc = []
         for k in ("contact:facebook", "facebook", "contact:instagram", "instagram",
                   "contact:twitter", "twitter", "contact:whatsapp", "whatsapp"):
             v = tags.get(k)
             if v:
                 v = v.strip()
-                if not v.startswith("http"):
+                low_v = v.lower()
+                if ":" in v.split("/")[0] and not low_v.startswith(("http://", "https://")):
+                    continue
+                if not low_v.startswith(("http://", "https://")):
                     if "facebook" in k: v = "https://facebook.com/" + v.lstrip("@")
                     elif "instagram" in k: v = "https://instagram.com/" + v.lstrip("@")
                     elif "twitter" in k: v = "https://twitter.com/" + v.lstrip("@")
-                    elif "whatsapp" in k: v = "https://wa.me/" + re.sub(r"\D", "", v)
-                soc.append(v)
+                    elif "whatsapp" in k:
+                        digits = re.sub(r"\D", "", v)
+                        v = f"https://wa.me/{digits}" if digits else ""
+                v = sanitize_http_url(v)
+                if v:
+                    soc.append(v)
         phone = (tags.get("phone") or tags.get("contact:phone") or tags.get("contact:mobile") or "").strip()
         email = (tags.get("email") or tags.get("contact:email") or "").strip()
         lat, lon = x.get("lat"), x.get("lon")
@@ -479,6 +515,7 @@ def osm(p, log):
     lat, lon, s, n, w, e, resolved_name = geocode(city_input, log)
     bb = f"({s},{w},{n},{e})"
     cat = cat_input.lower().strip()
+    escaped_cat = escape_overpass_regex(cat)
     tag = next((t for k, t in OSM_TAGS.items() if k in cat), None)
     
     # Query nodes and ways directly. Splitting node and way prevents geometry bottleneck and executes in ~1-2s
@@ -486,8 +523,8 @@ def osm(p, log):
         f"node{tag}{bb};\n"
         f"way{tag}{bb};\n"
     ) if tag else (
-        f'node["name"~"{cat.replace(chr(34), "")}",i]{bb};\n'
-        f'way["name"~"{cat.replace(chr(34), "")}",i]{bb};\n'
+        f'node["name"~"{escaped_cat}",i]{bb};\n'
+        f'way["name"~"{escaped_cat}",i]{bb};\n'
     )
     query_data = f"[out:json][timeout:35];(\n{q});\nout body center 300;\n"
     
@@ -565,8 +602,8 @@ def osm(p, log):
     if count == 0 and tag:
         try:
             fb_q = (
-                f'node["name"~"{cat.replace(chr(34), "")}",i]{bb};\n'
-                f'way["name"~"{cat.replace(chr(34), "")}",i]{bb};\n'
+                f'node["name"~"{escaped_cat}",i]{bb};\n'
+                f'way["name"~"{escaped_cat}",i]{bb};\n'
             )
             fb_data = f"[out:json][timeout:25];(\n{fb_q});\nout body center 150;\n"
             for srv in OVERPASS_SERVERS[:2]:

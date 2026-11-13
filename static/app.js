@@ -45,6 +45,22 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
 }[c]));
 
+function safeUrl(u) {
+  if (!u) return "";
+  try {
+    const parsed = new URL(String(u));
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.href : "";
+  } catch {
+    return "";
+  }
+}
+
+function hasSmtpConfigured() {
+  const secrets = currentSettings.configured_secrets || {};
+  const hasPass = Boolean(currentSettings.smtp_password || secrets.smtp_password);
+  return Boolean(currentSettings.smtp_email && hasPass);
+}
+
 function showToast(msg) {
   const t = $("#toast");
   t.textContent = msg;
@@ -109,9 +125,12 @@ function view() {
   return rows
     .filter(TABS[tab][1])
     .filter(r => {
-      if (cf === "has_email") return Boolean(r.email);
+      if (cf === "has_email") return Boolean(r.email && !r.email_guessed);
+      if (cf === "has_any_email") return Boolean(r.email);
       if (cf === "has_dm") return Boolean((r.dm_info && r.dm_info.dm_url) || r.phone || (r.socials && r.socials.length));
-      if (cf === "unsent_email") return Boolean(r.email && !["sent", "simulated", "already_sent"].includes(r.email_status));
+      if (cf === "unsent_email") {
+        return Boolean(r.email && !r.email_guessed && !["sent", "simulated", "already_sent"].includes(r.email_status));
+      }
       return true;
     })
     .filter(r => {
@@ -147,11 +166,12 @@ function render() {
   }).join("");
 
   // Summary metrics in status panel
-  const totalEmails = rows.filter(r => r.email).length;
+  const verifiedEmails = rows.filter(r => r.email && !r.email_guessed).length;
+  const guessedEmails = rows.filter(r => r.email && r.email_guessed).length;
   const totalDms = rows.filter(r => (r.dm_info && r.dm_info.dm_url) || r.phone).length;
   const totalSent = rows.filter(r => ["sent", "simulated"].includes(r.email_status)).length;
   $("#statusStats").innerHTML = rows.length > 0
-    ? `<span class="stat-pill">✉️ ${totalEmails} with Email</span>
+    ? `<span class="stat-pill">✉️ ${verifiedEmails} Verified Email${guessedEmails > 0 ? ` (+${guessedEmails} Suggested)` : ""}</span>
        <span class="stat-pill">💬 ${totalDms} with DM/WhatsApp</span>
        ${totalSent > 0 ? `<span class="stat-pill stat-sent">🚀 ${totalSent} Emailed</span>` : ""}`
     : "";
@@ -167,15 +187,16 @@ function render() {
   }
 
   $("#rows").innerHTML = visible.map(r => {
-    const score = r.lead_score || 60;
+    const score = Number(r.lead_score || 60);
     const scoreClass = score >= 80 ? "score-hot" : score >= 65 ? "score-warm" : "score-ok";
 
     // Rating & Map
     const ratingHtml = r.rating
-      ? `<span class="rating-val">${ICONS.star} ${r.rating}${r.reviews ? ` <small class="dim">(${r.reviews})</small>` : ""}</span>`
+      ? `<span class="rating-val">${ICONS.star} ${esc(r.rating)}${r.reviews ? ` <small class="dim">(${esc(r.reviews)})</small>` : ""}</span>`
       : "";
-    const mapHtml = r.maps_url
-      ? `<a href="${esc(r.maps_url)}" target="_blank" rel="noopener" class="map-inline-link">${ICONS.mapPin} Maps</a>`
+    const safeMapHref = safeUrl(r.maps_url);
+    const mapHtml = safeMapHref
+      ? `<a href="${esc(safeMapHref)}" target="_blank" rel="noopener" class="map-inline-link">${ICONS.mapPin} Maps</a>`
       : "";
 
     // Phone & 1-Click WhatsApp Pitch
@@ -189,15 +210,17 @@ function render() {
 
     // Social Links
     const socialLinks = (r.socials || []).map(s => {
+      const safeSoc = safeUrl(s);
+      if (!safeSoc) return "";
       let icon = ICONS.globe;
-      let label = s.replace(/https?:\/\/(www\.)?/, "").split("/")[0];
-      if (s.includes("instagram.com")) { icon = ICONS.instagram; label = "Instagram"; }
-      else if (s.includes("facebook.com")) { icon = ICONS.facebook; label = "Facebook"; }
-      else if (s.includes("twitter.com") || s.includes("x.com")) { icon = ICONS.twitter; label = "X"; }
-      else if (s.includes("linkedin.com")) { icon = ICONS.linkedin; label = "LinkedIn"; }
-      else if (s.includes("tiktok.com")) { icon = ICONS.tiktok; label = "TikTok"; }
-      else if (s.includes("linktr.ee")) { icon = ICONS.globe; label = "Linktree"; }
-      return `<a href="${esc(s)}" target="_blank" rel="noopener" class="social-pill">${icon} ${esc(label)}</a>`;
+      let label = safeSoc.replace(/https?:\/\/(www\.)?/, "").split("/")[0];
+      if (safeSoc.includes("instagram.com")) { icon = ICONS.instagram; label = "Instagram"; }
+      else if (safeSoc.includes("facebook.com")) { icon = ICONS.facebook; label = "Facebook"; }
+      else if (safeSoc.includes("twitter.com") || safeSoc.includes("x.com")) { icon = ICONS.twitter; label = "X"; }
+      else if (safeSoc.includes("linkedin.com")) { icon = ICONS.linkedin; label = "LinkedIn"; }
+      else if (safeSoc.includes("tiktok.com")) { icon = ICONS.tiktok; label = "TikTok"; }
+      else if (safeSoc.includes("linktr.ee")) { icon = ICONS.globe; label = "Linktree"; }
+      return `<a href="${esc(safeSoc)}" target="_blank" rel="noopener" class="social-pill">${icon} ${esc(label)}</a>`;
     }).join("");
 
     // Email & Dispatch Status
@@ -215,6 +238,8 @@ function render() {
         statusBadge = `<span class="email-badge already" title="${esc(r.email_status_note)}">Previously Sent</span>`;
       } else if (r.email_status === "error") {
         statusBadge = `<span class="email-badge err" title="${esc(r.email_status_note)}">SMTP Error</span>`;
+      } else if (r.email_guessed || r.email_status === "guessed") {
+        statusBadge = `<span class="email-badge guessed" title="${esc(r.email_status_note || "Suggested domain candidate — verify before sending")}">Suggested</span>`;
       }
       emailHtml = `<div class="email-block">
         <a href="${esc(buildMailtoHref(r))}" class="email-link" title="Open in mail client">${ICONS.mail} ${esc(primary)}</a>
@@ -224,10 +249,12 @@ function render() {
     }
 
     // Website Status + Live Audit / What They Need
-    const statusTag = `<span class="tag ${r.site_status}">${LABEL[r.site_status] || r.site_status}</span>`;
-    const cleanUrl = r.website ? r.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "") : "";
-    const siteUrlHtml = r.website
-      ? `<a href="${esc(r.website)}" target="_blank" rel="noopener" class="site-link" title="${esc(r.website)}">${esc(cleanUrl.slice(0, 30))}${cleanUrl.length > 30 ? "…" : ""} ${ICONS.external}</a>`
+    const statusKey = LABEL[r.site_status] ? r.site_status : "no_website";
+    const statusTag = `<span class="tag ${esc(statusKey)}">${esc(LABEL[r.site_status] || r.site_status)}</span>`;
+    const safeSiteHref = safeUrl(r.website);
+    const cleanUrl = safeSiteHref ? safeSiteHref.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "") : "";
+    const siteUrlHtml = safeSiteHref
+      ? `<a href="${esc(safeSiteHref)}" target="_blank" rel="noopener" class="site-link" title="${esc(safeSiteHref)}">${esc(cleanUrl.slice(0, 30))}${cleanUrl.length > 30 ? "…" : ""} ${ICONS.external}</a>`
       : "";
     const siteNoteHtml = r.site_note ? `<span class="site-note">${esc(r.site_note)}</span>` : "";
 
@@ -239,7 +266,7 @@ function render() {
     const isSent = ["sent", "simulated"].includes(r.email_status);
 
     const sendSmtpBtn = hasEmail
-      ? `<button type="button" class="btn-mini ${isSent ? "btn-sent" : "btn-send-smtp"}" data-action="send-smtp" data-id="${esc(r.id)}" title="${isSent ? "Click to re-send via SMTP" : "Send tailored email immediately via SMTP"}">
+      ? `<button type="button" class="btn-mini ${isSent ? "btn-sent" : "btn-send-smtp"}" data-action="send-smtp" data-id="${esc(r.id)}" title="${isSent ? "Click to re-send via SMTP" : (r.email_guessed ? "Suggested unverified address — click to send manually via SMTP" : "Send tailored email immediately via SMTP")}">
           ${ICONS.send} ${isSent ? "Sent ✓" : "Send Email"}
         </button>
         <a href="${esc(buildMailtoHref(r))}" class="btn-mini btn-mailto" title="Open pre-filled email in your default Mail app">
@@ -248,7 +275,7 @@ function render() {
       : "";
 
     let copyDmBtn = "";
-    if (dmInfo.dm_url) {
+    if (safeUrl(dmInfo.dm_url)) {
       const platLabel = dmInfo.platform || "DM";
       copyDmBtn = `<button type="button" class="btn-mini btn-copy-dm" data-action="copy-open-dm" data-id="${esc(r.id)}" title="Copies tailored DM message and opens ${esc(platLabel)} (${esc(dmInfo.handle)}) in a new tab">
         ${ICONS.copy} Copy &amp; Open ${esc(platLabel)}
@@ -262,7 +289,7 @@ function render() {
       <td class="td-biz">
         <div class="biz-header">
           <span class="biz-name">${esc(r.name)}</span>
-          <span class="score-badge ${scoreClass}" title="Lead Opportunity Score">${score}</span>
+          <span class="score-badge ${scoreClass}" title="Lead Opportunity Score">${esc(score)}</span>
         </div>
         ${r.address ? `<span class="biz-meta">${esc(r.address)}</span>` : ""}
         <div class="biz-tags-row">
@@ -321,7 +348,7 @@ $("#tabs").onclick = e => {
 // Quick Auto-Send Toggle in Header
 $("#quickAutoSend").onchange = async e => {
   const enabled = e.target.checked;
-  if (enabled && !currentSettings.smtp_email && !currentSettings.dry_run) {
+  if (enabled && !hasSmtpConfigured() && !currentSettings.dry_run) {
     showToast("Configure your SMTP Email & App Password (or enable Dry-Run) to auto-send emails.");
     openSettingsModal();
     e.target.checked = false;
@@ -370,8 +397,9 @@ $("#rows").onclick = async e => {
     contacted[lead.id] = true;
     localStorage.setItem("contacted", JSON.stringify(contacted));
     render();
-    if (lead.dm_info && lead.dm_info.dm_url) {
-      window.open(lead.dm_info.dm_url, "_blank", "noopener");
+    const dmUrl = safeUrl(lead.dm_info?.dm_url);
+    if (dmUrl) {
+      window.open(dmUrl, "_blank", "noopener");
     }
   } else if (action === "send-smtp") {
     await sendLeadEmailViaSmtp(lead, actionEl);
@@ -381,7 +409,7 @@ $("#rows").onclick = async e => {
 async function sendLeadEmailViaSmtp(lead, btnEl = null) {
   if (!lead.email) {
     showToast("No email address for this business.");
-    return false;
+    return {ok: false, status: "no_email"};
   }
   const origHtml = btnEl ? btnEl.innerHTML : "";
   if (btnEl) {
@@ -408,14 +436,14 @@ async function sendLeadEmailViaSmtp(lead, btnEl = null) {
       localStorage.setItem("contacted", JSON.stringify(contacted));
       showToast(`✓ ${data.message}`);
       render();
-      return true;
+      return {ok: true, status: data.status};
     } else {
       lead.email_status = "error";
       lead.email_status_note = data.message;
       showToast(data.message || "Failed to send email");
       if (data.status === "unconfigured") openSettingsModal();
       render();
-      return false;
+      return {ok: false, status: data.status || "error"};
     }
   } catch (err) {
     showToast("Error sending email: " + err.message);
@@ -423,20 +451,20 @@ async function sendLeadEmailViaSmtp(lead, btnEl = null) {
       btnEl.disabled = false;
       btnEl.innerHTML = origHtml;
     }
-    return false;
+    return {ok: false, status: "network_error"};
   }
 }
 
-// Bulk Send All Unsent Emails
+// Bulk Send All Unsent Verified Emails
 $("#sendAllBtn").onclick = async () => {
   const unsentLeads = view().filter(
-    r => r.email && !["sent", "simulated", "already_sent"].includes(r.email_status)
+    r => r.email && !r.email_guessed && !["sent", "simulated", "already_sent"].includes(r.email_status)
   );
   if (unsentLeads.length === 0) {
-    showToast("No unsent email leads in the current view.");
+    showToast("No unsent verified email leads in the current view.");
     return;
   }
-  if (!currentSettings.smtp_email && !currentSettings.dry_run) {
+  if (!hasSmtpConfigured() && !currentSettings.dry_run) {
     showToast("Configure your SMTP credentials (or enable Dry-Run) in Settings first.");
     openSettingsModal();
     return;
@@ -446,8 +474,12 @@ $("#sendAllBtn").onclick = async () => {
   let sentCount = 0;
   for (let i = 0; i < unsentLeads.length; i++) {
     $("#sendAllText").textContent = `Sending ${i + 1}/${unsentLeads.length}...`;
-    const ok = await sendLeadEmailViaSmtp(unsentLeads[i]);
-    if (ok) sentCount++;
+    const res = await sendLeadEmailViaSmtp(unsentLeads[i]);
+    if (res.ok) {
+      sentCount++;
+    } else if (res.status === "unconfigured") {
+      break;
+    }
   }
   $("#sendAllText").textContent = "Email All Unsent";
   $("#sendAllBtn").disabled = false;
@@ -493,7 +525,7 @@ function syncModalFooterLinks(lead) {
   }
 
   const dmBtn = $("#modalCopyOpenDmBtn");
-  if (lead.dm_info && lead.dm_info.dm_url) {
+  if (lead.dm_info && safeUrl(lead.dm_info.dm_url)) {
     dmBtn.textContent = `Copy & Open ${lead.dm_info.platform} DM`;
     dmBtn.hidden = false;
   } else {
@@ -554,12 +586,13 @@ $("#modalCopyDmBtn").onclick = () => copyText($("#pitchDmInput").value, "Copied 
 
 $("#modalCopyOpenDmBtn").onclick = async () => {
   const lead = rows.find(r => r.id === activeModalLeadId);
-  if (!lead || !lead.dm_info?.dm_url) return;
+  const dmUrl = safeUrl(lead?.dm_info?.dm_url);
+  if (!lead || !dmUrl) return;
   await copyText($("#pitchDmInput").value, `Copied DM! Opening ${lead.dm_info.platform}...`);
   contacted[lead.id] = true;
   localStorage.setItem("contacted", JSON.stringify(contacted));
   render();
-  window.open(lead.dm_info.dm_url, "_blank", "noopener");
+  window.open(dmUrl, "_blank", "noopener");
 };
 
 $("#modalSendSmtpBtn").onclick = async () => {
@@ -576,6 +609,7 @@ $("#closePitchModal").onclick = () => { $("#pitchModal").hidden = true; };
 // Settings Modal Logic
 function openSettingsModal() {
   const s = currentSettings;
+  const secrets = s.configured_secrets || {};
   $("#s_sender_name").value = s.sender_name || "";
   $("#s_sender_company").value = s.sender_company || "";
   $("#s_sender_portfolio").value = s.sender_portfolio || "";
@@ -583,14 +617,18 @@ function openSettingsModal() {
   $("#s_pitch_angle").value = s.pitch_angle || "auto";
   $("#s_custom_offer").value = s.custom_offer || "";
   $("#s_smtp_email").value = s.smtp_email || "";
-  $("#s_smtp_password").value = s.smtp_password || "";
+  $("#s_smtp_password").value = "";
+  $("#s_smtp_password").placeholder = secrets.smtp_password ? "Saved — leave blank to keep" : "••••••••••••••••";
   $("#s_smtp_host").value = s.smtp_host || "smtp.gmail.com";
   $("#s_smtp_port").value = s.smtp_port || 465;
   $("#s_auto_send_email").checked = Boolean(s.auto_send_email);
   $("#s_dry_run").checked = Boolean(s.dry_run);
-  $("#s_hunter_api_key").value = s.hunter_api_key || "";
-  $("#s_gemini_api_key").value = s.gemini_api_key || "";
-  $("#s_groq_api_key").value = s.groq_api_key || "";
+  $("#s_hunter_api_key").value = "";
+  $("#s_hunter_api_key").placeholder = secrets.hunter_api_key ? "Saved — leave blank to keep" : "Optional";
+  $("#s_gemini_api_key").value = "";
+  $("#s_gemini_api_key").placeholder = secrets.gemini_api_key ? "Saved — leave blank to keep" : "AIzaSy... (Optional)";
+  $("#s_groq_api_key").value = "";
+  $("#s_groq_api_key").placeholder = secrets.groq_api_key ? "Saved — leave blank to keep" : "gsk_... (Optional)";
   $("#smtpTestStatus").textContent = "";
   $("#settingsModal").hidden = false;
 }
@@ -651,6 +689,12 @@ $("#testSmtpBtn").onclick = async () => {
     const data = await res.json();
     $("#smtpTestStatus").textContent = data.message || (data.ok ? "Connected!" : "Failed");
     $("#smtpTestStatus").style.color = data.ok ? "var(--ok-text)" : "var(--bad-text)";
+    const sRes = await fetch("/api/settings");
+    if (sRes.ok) {
+      const sData = await sRes.json();
+      currentSettings = sData.settings || currentSettings;
+      syncAutoSendPill(sData.sent_total);
+    }
   } catch (err) {
     $("#smtpTestStatus").textContent = "Error: " + err.message;
   } finally {
@@ -687,11 +731,19 @@ $("#f").onsubmit = async e => {
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify(body)
     });
-    const {id} = await res.json();
+    const startData = await res.json();
+    if (!res.ok || !startData.id) {
+      throw new Error(startData.error || "Failed to start search");
+    }
+    const {id} = startData;
 
     timer = setInterval(async () => {
       try {
-        const j = await (await fetch(`/api/job/${id}?since=${rows.length}`)).json();
+        const pollRes = await fetch(`/api/job/${id}?since=${rows.length}`);
+        const j = await pollRes.json();
+        if (!pollRes.ok) {
+          throw new Error(j.error || "Failed to poll job");
+        }
         if (j.results && j.results.length > 0) {
           rows.push(...j.results);
           render();
@@ -706,6 +758,8 @@ $("#f").onsubmit = async e => {
           $("#go").disabled = false;
         }
       } catch (pollErr) {
+        clearInterval(timer);
+        $("#go").disabled = false;
         $("#status").textContent = "Error checking progress: " + pollErr.message;
       }
     }, 1200);
@@ -723,9 +777,9 @@ $("#csv").onclick = () => {
     return;
   }
   const cols = [
-    "name", "category", "address", "email", "phone", "socials", "website",
+    "name", "category", "address", "email", "email_verified", "phone", "socials", "website",
     "site_status", "site_note", "audit_issues", "lead_score", "rating",
-    "reviews", "maps_url", "email_status", "outreach_subject", "outreach_body"
+    "reviews", "maps_url", "email_status", "outreach_subject", "outreach_body", "outreach_dm"
   ];
   const headerRow = cols.join(",");
   const dataRows = currentRows.map(r => {
