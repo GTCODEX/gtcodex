@@ -23,4 +23,4 @@ desktop.ini
 # Logs & temp
 *.log
 scratch/
-test_*.py
+/test_*.py

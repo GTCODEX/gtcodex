@@ -79,13 +79,19 @@ Every lead receives a custom, human-written cold email and social DM/WhatsApp pi
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/frankdotdev/Leadfinder.git
-cd Leadfinder
+git clone https://github.com/GTCODEX/gtcodex.git
+cd gtcodex
 ```
 
 ### 2. Run the server
 ```bash
 python server.py
+```
+*(Optional: set `HOST=0.0.0.0` and `PORT=8000` environment variables to expose the server outside localhost.)*
+
+### 3. Run the test suite
+```bash
+python -m unittest discover -s tests -v
 ```
 
 ### 3. Open your browser
@@ -124,7 +130,8 @@ Exported CSVs provide complete lead intelligence ready for CRMs:
 - `name` - Business name
 - `category` - Industry / amenity type
 - `address` - Physical street address
-- `email` - Primary and secondary extracted emails
+- `email` - Primary and secondary extracted or suggested emails
+- `email_verified` - `true` for extracted/OSM emails, `false` for derived domain candidates
 - `phone` - Contact phone number
 - `website` - Target URL or social link
 - `site_status` - `no_website`, `social_only`, `broken`, `working`
@@ -150,6 +157,8 @@ leadfinder/
 ├── providers.py         # Resilient multi-tier map engine (Overpass, Nominatim, Photon, Google Places)
 ├── outreach.py          # Email hunting, live site audit, SMTP mailer, & pitch generation
 ├── server.py            # Async verification pipeline, job streaming API, & static server
+├── tests/
+│   └── test_leadfinder.py # Unit & HTTP API tests (stdlib unittest)
 ├── data/
 │   ├── geocache.json    # Local coordinate cache for zero-latency repeat searches
 │   ├── settings.json    # Persisted outreach & SMTP configuration
