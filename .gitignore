@@ -24,3 +24,7 @@ desktop.ini
 *.log
 scratch/
 /test_*.py
+
+# Rendered media (360 spins)
+out/
+media/
