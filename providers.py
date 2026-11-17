@@ -1,6 +1,7 @@
 """Map providers. To add one: write a generator that yields biz(...) dicts, then register it in PROVIDERS.
 Everything after collection (website checks, contacts, dashboard) is provider-independent."""
 import json
+import os
 import re
 import ssl
 import urllib.error
@@ -9,7 +10,17 @@ import urllib.request
 from pathlib import Path
 
 APP_UA = "LeadFinder/1.1 (https://github.com/frankdotdev/Leadfinder; leadfinder-app@gmail.com)"
-DATA_DIR = (Path(__file__).parent / "data").resolve()
+
+
+def _resolve_data_dir():
+    """Use DATA_DIR when set (e.g. /tmp on Vercel), otherwise use local data/."""
+    configured = os.environ.get("DATA_DIR", "").strip()
+    if configured:
+        return Path(configured).expanduser().resolve()
+    return (Path(__file__).parent / "data").resolve()
+
+
+DATA_DIR = _resolve_data_dir()
 GEOCACHE_FILE = DATA_DIR / "geocache.json"
 
 # Local cache loader

@@ -737,6 +737,19 @@ $("#f").onsubmit = async e => {
     }
     const {id} = startData;
 
+    // Vercel Functions cannot keep background threads alive after a response,
+    // so serverless /api/start returns the completed job directly.
+    if (Array.isArray(startData.results)) {
+      rows.push(...startData.results);
+      render();
+      const sentNote = startData.sent_count > 0 ? ` • ${startData.sent_count} auto-emailed` : "";
+      $("#status").textContent = startData.error
+        ? "Error: " + startData.error
+        : `${startData.msg || "Done"}: ${startData.found || rows.length} discovered, ${rows.length} audited & pitched${sentNote}`;
+      $("#go").disabled = false;
+      return;
+    }
+
     timer = setInterval(async () => {
       try {
         const pollRes = await fetch(`/api/job/${id}?since=${rows.length}`);

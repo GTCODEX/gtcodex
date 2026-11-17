@@ -159,6 +159,11 @@ leadfinder/
 ├── server.py            # Async verification pipeline, job streaming API, & static server
 ├── tests/
 │   └── test_leadfinder.py # Unit & HTTP API tests (stdlib unittest)
+├── app.py               # Vercel Flask wrapper (deployment only)
+├── build.py             # Copies static/ -> public/ during Vercel builds
+├── vercel.json          # Vercel Flask preset and function config
+├── requirements.txt     # Flask (deployment only; local app needs no packages)
+├── public/              # Generated CDN assets (gitignored)
 ├── data/
 │   ├── geocache.json    # Local coordinate cache for zero-latency repeat searches
 │   ├── settings.json    # Persisted outreach & SMTP configuration
@@ -168,6 +173,28 @@ leadfinder/
 ```
 
 ---
+
+## ☁️ Deploying to Vercel
+
+The local app remains **zero-dependency**: `python server.py` uses only the Python standard library. A thin Flask wrapper is used only when deploying to Vercel.
+
+```text
+app.py            # Vercel WSGI entrypoint; routes through server.dispatch()
+requirements.txt  # Flask, installed by Vercel only
+vercel.json       # Flask preset, build command, function limits
+build.py          # copies static/ -> public/ for Vercel's CDN
+public/           # generated at build time (gitignored)
+```
+
+Vercel's Python runtime cannot keep the local `ThreadingHTTPServer` or its background job threads alive. On Vercel:
+
+* Requests are handled by `app.py` through the shared `server.dispatch()` router.
+* `static/` is copied into `public/` by `build.py` and served from the CDN.
+* `/api/start` runs a bounded synchronous search (first **25** leads, **45 s** deadline) and returns the results directly; the frontend no longer needs to poll across stateless instances.
+* `/api/job/<id>` falls back to a best-effort snapshot in `/tmp` for warm instances.
+* `DATA_DIR` is honored by `outreach.py` and `providers.py`. Set it to a writable Vercel path such as `/tmp/social-desk`; the existing project already has `DATA_DIR=/tmp/social-desk`.
+
+**Persistence caveat:** `/tmp` is ephemeral and not shared between function instances. SMTP settings, the sent-email ledger, the geocache, and job snapshots may reset between cold starts. For production durability, connect a database or Vercel Blob and replace the synchronous job runner with Vercel Queues/Workflows. A quick liveness check is available at `/api/health`.
 
 ## 🤝 Contributing
 

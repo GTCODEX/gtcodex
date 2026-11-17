@@ -24,3 +24,7 @@ desktop.ini
 *.log
 scratch/
 /test_*.py
+
+# Vercel build output / local metadata
+public/
+.vercel/

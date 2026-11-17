@@ -17,7 +17,15 @@ import urllib.request
 from email.message import EmailMessage
 from pathlib import Path
 
-DATA_DIR = (Path(__file__).parent / "data").resolve()
+def _resolve_data_dir():
+    """Use DATA_DIR when set (e.g. /tmp on Vercel), otherwise use local data/."""
+    configured = os.environ.get("DATA_DIR", "").strip()
+    if configured:
+        return Path(configured).expanduser().resolve()
+    return (Path(__file__).parent / "data").resolve()
+
+
+DATA_DIR = _resolve_data_dir()
 SETTINGS_FILE = DATA_DIR / "settings.json"
 SENT_LOG_FILE = DATA_DIR / "sent_emails.json"
 ENV_FILE = Path(__file__).parent / ".env"

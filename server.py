@@ -22,6 +22,13 @@ JOBS_LOCK = threading.Lock()
 MAX_JOBS = 50
 MAX_REQUEST_BYTES = 1_048_576
 
+# Vercel Functions are stateless and cannot keep background threads alive after
+# a response. On Vercel we run a bounded, synchronous job and persist a snapshot
+# to /tmp so the polling endpoint can still return results on a warm instance.
+SERVERLESS_MAX_LEADS = 25
+SERVERLESS_DEADLINE_SECONDS = 45.0
+JOBS_DIR = outreach.DATA_DIR / "jobs"
+
 SOCIAL = re.compile(
     r"facebook\.com|instagram\.com|linktr\.ee|wa\.me|twitter\.com|//x\.com|tiktok\.com|youtube\.com|linkedin\.com|threads\.net",
     re.I,
@@ -535,6 +542,282 @@ def _prune_old_jobs():
             JOBS.pop(jid, None)
 
 
+def _job_payload(job, since=0):
+    with job["lock"]:
+        return {
+            "msg": job["msg"],
+            "found": job["found"],
+            "done": job["done"],
+            "error": job["error"],
+            "sent_count": job.get("sent_count", 0),
+            "results": list(job["results"][since:]),
+        }
+
+
+def _job_snapshot_path(jid):
+    return JOBS_DIR / f"{jid}.json"
+
+
+def _save_job_snapshot(jid, job):
+    """Best-effort snapshot for Vercel's warm /tmp; not durable across instances."""
+    try:
+        JOBS_DIR.mkdir(parents=True, exist_ok=True)
+        payload = _job_payload(job, 0)
+        payload["created_at"] = job.get("created_at", time.time())
+        tmp = JOBS_DIR / f".{jid}.{threading.get_ident()}.tmp"
+        tmp.write_text(json.dumps(payload), encoding="utf-8")
+        os.replace(tmp, _job_snapshot_path(jid))
+    except Exception:
+        pass
+
+
+def _load_job_snapshot(jid):
+    path = _job_snapshot_path(jid)
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
+def _prune_job_files():
+    try:
+        files = sorted(JOBS_DIR.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+        for path in files[MAX_JOBS:]:
+            try:
+                path.unlink()
+            except OSError:
+                pass
+    except Exception:
+        pass
+
+
+def _parse_json_body(body):
+    if isinstance(body, str):
+        body = body.encode("utf-8")
+    if not isinstance(body, (bytes, bytearray)):
+        body = bytes(body)
+    if not body:
+        return {}
+    if len(body) > MAX_REQUEST_BYTES:
+        raise ValueError("Invalid Content-Length")
+    return json.loads(body)
+
+
+def _static_response(u):
+    f = (STATIC / ("index.html" if u.path == "/" else u.path.lstrip("/"))).resolve()
+    if f.is_file() and STATIC in f.parents:
+        return 200, f.read_bytes(), TYPES.get(f.suffix, "application/octet-stream")
+    return None
+
+
+def run_sync(job, p, jid):
+    """Bounded, synchronous search for Vercel Functions (no background threads)."""
+    def set_msg(m):
+        with job["lock"]:
+            job["msg"] = m
+
+    started = time.time()
+    deadline = started + SERVERLESS_DEADLINE_SECONDS
+    seen = set()
+    settings = outreach.get_settings()
+    executor = ThreadPoolExecutor(max_workers=6)
+    futures = []
+
+    try:
+        provider_fn = providers.PROVIDERS[p["provider"]]["fn"]
+        for b in provider_fn(p, set_msg):
+            if time.time() >= deadline or len(seen) >= SERVERLESS_MAX_LEADS:
+                break
+            if b["id"] in seen:
+                continue
+            seen.add(b["id"])
+            with job["lock"]:
+                job["found"] = len(seen)
+            futures.append(executor.submit(enrich, job, b, settings))
+
+        set_msg("Hunting emails, auditing sites & preparing pitches")
+        for future in futures:
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                break
+            try:
+                future.result(timeout=remaining)
+            except Exception:
+                pass
+
+        if len(seen) >= SERVERLESS_MAX_LEADS:
+            set_msg(f"Done (limited to first {SERVERLESS_MAX_LEADS} leads on Vercel)")
+        elif time.time() >= deadline:
+            set_msg("Done (time limit reached; partial results)")
+        else:
+            set_msg("Done")
+    except Exception as e:
+        err_msg = str(e)
+        if "10060" in err_msg:
+            err_msg = "Network timeout (WinError 10060): Unable to reach map server. Please check your internet connection."
+        with job["lock"]:
+            job["error"] = err_msg
+    finally:
+        try:
+            executor.shutdown(wait=False, cancel_futures=True)
+        except TypeError:
+            executor.shutdown(wait=False)
+        with job["lock"]:
+            job["done"] = True
+        _save_job_snapshot(jid, job)
+
+
+def dispatch(method, path, body=b"", serverless=False):
+    """Shared request router for the local HTTP server and the Vercel WSGI app."""
+    method = (method or "GET").upper()
+    u = urllib.parse.urlparse(path or "/")
+
+    if method == "GET" and u.path == "/api/health":
+        return 200, {
+            "ok": True,
+            "runtime": "vercel" if serverless else "local",
+            "storage": "ephemeral" if serverless else "local-files",
+        }, "application/json"
+
+    if method == "GET" and u.path == "/api/providers":
+        return 200, [
+            {"id": k, "label": v["label"], "key": v["key"]}
+            for k, v in providers.PROVIDERS.items()
+        ], "application/json"
+
+    if method == "GET" and u.path == "/api/settings":
+        s = outreach.get_public_settings()
+        ledger = outreach.get_sent_ledger()
+        return 200, {"settings": s, "sent_total": len(ledger)}, "application/json"
+
+    if method == "GET" and u.path.startswith("/api/job/"):
+        jid = u.path.split("/")[-1]
+        if not re.fullmatch(r"[0-9a-f]{8}", jid):
+            return 404, {"error": "Unknown job"}, "application/json"
+        try:
+            since = int(urllib.parse.parse_qs(u.query).get("since", [0])[0])
+            if since < 0:
+                raise ValueError("negative")
+        except ValueError:
+            return 400, {"error": "Invalid since parameter"}, "application/json"
+
+        with JOBS_LOCK:
+            j = JOBS.get(jid)
+        if j is not None:
+            return 200, _job_payload(j, since), "application/json"
+
+        snapshot = _load_job_snapshot(jid) if serverless else None
+        if not snapshot:
+            return 404, {"error": "Unknown job"}, "application/json"
+        payload = {k: snapshot.get(k) for k in ("msg", "found", "done", "error", "sent_count")}
+        payload["results"] = list(snapshot.get("results", []))[since:]
+        return 200, payload, "application/json"
+
+    if method == "GET":
+        static = _static_response(u)
+        if static:
+            return static
+        return 404, {"error": "Not found"}, "application/json"
+
+    if method != "POST":
+        return 405, {"error": "Method not allowed"}, "application/json"
+
+    try:
+        p = _parse_json_body(body)
+    except Exception as e:
+        return 400, {"error": f"Invalid JSON: {e}"}, "application/json"
+    if not isinstance(p, dict):
+        return 400, {"error": "JSON body must be an object"}, "application/json"
+
+    if u.path == "/api/settings":
+        updated = outreach.save_settings(p)
+        ledger = outreach.get_sent_ledger()
+        return 200, {
+            "ok": True,
+            "settings": outreach.get_public_settings(updated),
+            "sent_total": len(ledger),
+        }, "application/json"
+
+    if u.path == "/api/send-email":
+        res = outreach.send_smtp_email(
+            p.get("email", ""),
+            p.get("subject", ""),
+            p.get("body", ""),
+            biz_name=p.get("name", ""),
+            force=bool(p.get("force", True)),
+        )
+        return 200 if res.get("ok") else 400, res, "application/json"
+
+    if u.path == "/api/test-smtp":
+        if isinstance(p.get("settings"), dict):
+            outreach.save_settings(p["settings"])
+        s = outreach.get_settings()
+        target = (p.get("to") or s.get("smtp_email") or "").strip()
+        if not target:
+            return 400, {"ok": False, "message": "Enter your SMTP Email first."}, "application/json"
+        res = outreach.send_smtp_email(
+            target,
+            "LeadFinder SMTP Test — Connected!",
+            f"Hi {s.get('sender_name', 'there')},\n\nYour LeadFinder auto-outreach SMTP connection is working properly!\n\n— LeadFinder",
+            biz_name="SMTP Test",
+            force=True,
+        )
+        return 200 if res.get("ok") else 400, res, "application/json"
+
+    if u.path == "/api/regenerate-pitch":
+        lead = p.get("lead") or {}
+        angle = p.get("angle") or "auto"
+        use_ai = bool(p.get("use_ai", False))
+        pitch = (
+            outreach.generate_ai_outreach(lead, angle_override=angle)
+            if use_ai
+            else outreach.generate_outreach(lead, angle_override=angle)
+        )
+        return 200, {"ok": True, **pitch}, "application/json"
+
+    if u.path == "/api/start":
+        provider_id = (p.get("provider") or "").strip()
+        city = (p.get("city") or "").strip()
+        category = (p.get("category") or "").strip()
+        if provider_id not in providers.PROVIDERS:
+            return 400, {"error": f"Unknown provider: {provider_id}"}, "application/json"
+        if not city or not category:
+            return 400, {"error": "Both 'city' and 'category' are required."}, "application/json"
+
+        _prune_old_jobs()
+        jid = uuid.uuid4().hex[:8]
+        job = {
+            "results": [],
+            "futs": [],
+            "msg": "Starting",
+            "found": 0,
+            "sent_count": 0,
+            "done": False,
+            "error": None,
+            "created_at": time.time(),
+            "lock": threading.Lock(),
+        }
+        with JOBS_LOCK:
+            JOBS[jid] = job
+
+        if serverless:
+            _prune_job_files()
+            _save_job_snapshot(jid, job)
+            run_sync(job, p, jid)
+            payload = _job_payload(job, 0)
+            payload["id"] = jid
+            payload["runtime"] = "vercel"
+            return 200, payload, "application/json"
+
+        threading.Thread(target=run, args=(job, p), daemon=True).start()
+        return 200, {"id": jid}, "application/json"
+
+    return 404, {"error": "Not found"}, "application/json"
+
+
 class H(BaseHTTPRequestHandler):
     def reply(self, code, body, ctype="application/json"):
         b = body if isinstance(body, bytes) else json.dumps(body).encode()
@@ -544,129 +827,30 @@ class H(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b)
 
-    def read_json(self):
+    def _read_body(self):
         raw_len = self.headers.get("Content-Length")
         if raw_len is None:
-            return {}
-        length = int(raw_len)
+            return b""
+        try:
+            length = int(raw_len)
+        except (TypeError, ValueError):
+            raise ValueError("Invalid Content-Length")
         if length < 0 or length > MAX_REQUEST_BYTES:
             raise ValueError("Invalid Content-Length")
-        if length == 0:
-            return {}
-        return json.loads(self.rfile.read(length))
+        return self.rfile.read(length) if length else b""
+
+    def read_json(self):
+        return _parse_json_body(self._read_body())
 
     def do_GET(self):
-        u = urllib.parse.urlparse(self.path)
-        if u.path == "/api/providers":
-            return self.reply(
-                200,
-                [{"id": k, "label": v["label"], "key": v["key"]} for k, v in providers.PROVIDERS.items()],
-            )
-        if u.path == "/api/settings":
-            s = outreach.get_public_settings()
-            ledger = outreach.get_sent_ledger()
-            return self.reply(200, {"settings": s, "sent_total": len(ledger)})
-        if u.path.startswith("/api/job/"):
-            jid = u.path.split("/")[-1]
-            with JOBS_LOCK:
-                j = JOBS.get(jid)
-            if not j:
-                return self.reply(404, {"error": "Unknown job"})
-            try:
-                since = int(urllib.parse.parse_qs(u.query).get("since", [0])[0])
-                if since < 0:
-                    raise ValueError("negative")
-            except ValueError:
-                return self.reply(400, {"error": "Invalid since parameter"})
-            with j["lock"]:
-                payload = {k: j[k] for k in ("msg", "found", "done", "error", "sent_count")} | {
-                    "results": list(j["results"][since:])
-                }
-            return self.reply(200, payload)
-        f = (STATIC / ("index.html" if u.path == "/" else u.path.lstrip("/"))).resolve()
-        if f.is_file() and STATIC in f.parents:
-            return self.reply(200, f.read_bytes(), TYPES.get(f.suffix, "application/octet-stream"))
-        self.reply(404, {"error": "Not found"})
+        return self.reply(*dispatch("GET", self.path, b"", serverless=False))
 
     def do_POST(self):
-        u = urllib.parse.urlparse(self.path)
         try:
-            p = self.read_json()
+            body = self._read_body()
         except Exception as e:
             return self.reply(400, {"error": f"Invalid JSON: {e}"})
-        if not isinstance(p, dict):
-            return self.reply(400, {"error": "JSON body must be an object"})
-
-        if u.path == "/api/settings":
-            updated = outreach.save_settings(p)
-            ledger = outreach.get_sent_ledger()
-            return self.reply(200, {"ok": True, "settings": outreach.get_public_settings(updated), "sent_total": len(ledger)})
-
-        if u.path == "/api/send-email":
-            res = outreach.send_smtp_email(
-                p.get("email", ""),
-                p.get("subject", ""),
-                p.get("body", ""),
-                biz_name=p.get("name", ""),
-                force=bool(p.get("force", True)),
-            )
-            return self.reply(200 if res.get("ok") else 400, res)
-
-        if u.path == "/api/test-smtp":
-            if isinstance(p.get("settings"), dict):
-                outreach.save_settings(p["settings"])
-            s = outreach.get_settings()
-            target = (p.get("to") or s.get("smtp_email") or "").strip()
-            if not target:
-                return self.reply(400, {"ok": False, "message": "Enter your SMTP Email first."})
-            res = outreach.send_smtp_email(
-                target,
-                "LeadFinder SMTP Test — Connected!",
-                f"Hi {s.get('sender_name', 'there')},\n\nYour LeadFinder auto-outreach SMTP connection is working properly!\n\n— LeadFinder",
-                biz_name="SMTP Test",
-                force=True,
-            )
-            return self.reply(200 if res.get("ok") else 400, res)
-
-        if u.path == "/api/regenerate-pitch":
-            lead = p.get("lead") or {}
-            angle = p.get("angle") or "auto"
-            use_ai = bool(p.get("use_ai", False))
-            pitch = (
-                outreach.generate_ai_outreach(lead, angle_override=angle)
-                if use_ai
-                else outreach.generate_outreach(lead, angle_override=angle)
-            )
-            return self.reply(200, {"ok": True, **pitch})
-
-        if u.path == "/api/start":
-            provider_id = (p.get("provider") or "").strip()
-            city = (p.get("city") or "").strip()
-            category = (p.get("category") or "").strip()
-            if provider_id not in providers.PROVIDERS:
-                return self.reply(400, {"error": f"Unknown provider: {provider_id}"})
-            if not city or not category:
-                return self.reply(400, {"error": "Both 'city' and 'category' are required."})
-
-            _prune_old_jobs()
-            jid = uuid.uuid4().hex[:8]
-            job = {
-                "results": [],
-                "futs": [],
-                "msg": "Starting",
-                "found": 0,
-                "sent_count": 0,
-                "done": False,
-                "error": None,
-                "created_at": time.time(),
-                "lock": threading.Lock(),
-            }
-            with JOBS_LOCK:
-                JOBS[jid] = job
-            threading.Thread(target=run, args=(job, p), daemon=True).start()
-            return self.reply(200, {"id": jid})
-
-        return self.reply(404, {"error": "Not found"})
+        return self.reply(*dispatch("POST", self.path, body, serverless=False))
 
     def log_message(self, *a):
         pass
