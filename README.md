@@ -158,7 +158,16 @@ leadfinder/
 ├── outreach.py          # Email hunting, live site audit, SMTP mailer, & pitch generation
 ├── server.py            # Async verification pipeline, job streaming API, & static server
 ├── tests/
-│   └── test_leadfinder.py # Unit & HTTP API tests (stdlib unittest)
+│   ├── test_leadfinder.py     # Unit & HTTP API tests (stdlib unittest)
+│   └── test_football_stats.py # Tests for the football statistics learning package
+├── football_stats/      # 📚 Statistics analysis of football data (zero-dependency course)
+│   ├── data.py          # CSV loading, league tables, splits, name normalisation
+│   ├── stats.py         # Descriptive stats, distributions, tests, regression, scoring
+│   ├── models.py        # Poisson match model, Elo ratings, Monte-Carlo simulation
+│   ├── fetch.py         # Re-download the original public datasets from GitHub
+│   ├── datasets/        # Two Premier League seasons, ready to analyse
+│   ├── examples/        # Eight runnable lessons
+│   └── CURRICULUM.md    # The full learning path
 ├── data/
 │   ├── geocache.json    # Local coordinate cache for zero-latency repeat searches
 │   ├── settings.json    # Persisted outreach & SMTP configuration
@@ -166,6 +175,29 @@ leadfinder/
 ├── .gitignore           # Git ignore rules
 └── README.md            # Documentation
 ```
+
+---
+
+## 📚 Learning: Statistics Analysis of Football Data
+
+The repository also ships **football_stats**, a self-contained, zero-dependency course in
+statistical analysis using real football data — two full Premier League seasons with
+goals, xG, shots, possession, cards and betting odds.
+
+No pandas, no scipy, no paid data: every algorithm is implemented in the standard
+library and is small enough to read.
+
+```bash
+python -m football_stats.examples.01_descriptive_statistics   # describe a season
+python -m football_stats.examples.06_poisson_match_prediction # predict matches vs the bookmaker
+python -m unittest tests.test_football_stats -v               # 47 tests
+```
+
+Eight lessons cover descriptive statistics, the Poisson distribution, hypothesis testing,
+correlation and regression, expected goals, match prediction and evaluation, Elo ratings,
+and Monte-Carlo season simulation. See
+[`football_stats/CURRICULUM.md`](football_stats/CURRICULUM.md) for the full syllabus,
+exercises and capstone project ideas.
 
 ---
 
