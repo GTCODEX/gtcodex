@@ -5,6 +5,28 @@ bundled so the tutorials work offline.
 
 ## Files
 
+### `epl_2025_26.csv` — 2025/26 Premier League (353 matches played)
+
+Derived from `2025-26/en.1.json` in
+[openfootball/football.json](https://github.com/openfootball/football.json).
+The most recent complete season, and the natural training set for predicting the
+current one. Columns: `date`, `round`, `home`, `away`, `home_goals`, `away_goals`,
+`result`.
+
+### `epl_2026_27.csv` — 2026/27 Premier League (partial)
+
+Derived from `2026-27/en.1.json` in
+[openfootball/football.json](https://github.com/openfootball/football.json).
+Only the rounds that have been played are included — the source file stores unplayed
+fixtures as `0-0` placeholders, which are filtered out. **Check the date range before
+using it**; if it is short, combine it with the previous season:
+
+```python
+from football_stats import data as d
+train = sorted(d.load_dataset("epl_2025_26") + d.load_dataset("epl_2026_27"),
+               key=lambda m: (m.date, m.home))
+```
+
 ### `epl_2018_19.csv` — 2018/19 Premier League (380 matches)
 
 Derived from `FootyStats/england-premier-league-matches-2018-to-2019-stats.csv` in

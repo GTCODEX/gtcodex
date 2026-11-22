@@ -30,6 +30,8 @@ DATASETS_DIR = PACKAGE_DIR / "datasets"
 DATASETS = {
     "epl_2018_19": DATASETS_DIR / "epl_2018_19.csv",
     "epl_2019_20": DATASETS_DIR / "epl_2019_20.csv",
+    "epl_2025_26": DATASETS_DIR / "epl_2025_26.csv",
+    "epl_2026_27": DATASETS_DIR / "epl_2026_27.csv",
 }
 
 # The two source datasets use different club names. Real-world data is full of
@@ -45,6 +47,10 @@ TEAM_ALIASES = {
     "Tottenham": "Tottenham Hotspur",
     "West Ham": "West Ham United",
     "Wolves": "Wolverhampton Wanderers",
+    # short names used by the recent-season (openfootball) datasets
+    "Hull": "Hull City",
+    "Ipswich": "Ipswich Town",
+    "Coventry": "Coventry City",
 }
 
 

@@ -1,0 +1,354 @@
+date,round,home,away,home_goals,away_goals,result
+2025-08-15,Matchday 1,Liverpool,AFC Bournemouth,4,2,H
+2025-08-16,Matchday 1,Brighton & Hove Albion,Fulham,1,1,D
+2025-08-16,Matchday 1,Sunderland,West Ham United,3,0,H
+2025-08-16,Matchday 1,Tottenham Hotspur,Burnley,3,0,H
+2025-08-16,Matchday 1,Wolverhampton Wanderers,Manchester City,0,4,A
+2025-08-17,Matchday 1,Manchester United,Arsenal,0,1,A
+2025-08-17,Matchday 1,Nottingham Forest,Brentford,3,1,H
+2025-08-18,Matchday 1,Leeds United,Everton,1,0,H
+2025-08-22,Matchday 2,West Ham United,Chelsea,1,5,A
+2025-08-23,Matchday 2,AFC Bournemouth,Wolverhampton Wanderers,1,0,H
+2025-08-23,Matchday 2,Arsenal,Leeds United,5,0,H
+2025-08-23,Matchday 2,Brentford,Aston Villa,1,0,H
+2025-08-23,Matchday 2,Burnley,Sunderland,2,0,H
+2025-08-23,Matchday 2,Manchester City,Tottenham Hotspur,0,2,A
+2025-08-24,Matchday 2,Crystal Palace,Nottingham Forest,1,1,D
+2025-08-24,Matchday 2,Everton,Brighton & Hove Albion,2,0,H
+2025-08-24,Matchday 2,Fulham,Manchester United,1,1,D
+2025-08-25,Matchday 2,Newcastle United,Liverpool,2,3,A
+2025-08-30,Matchday 3,Chelsea,Fulham,2,0,H
+2025-08-30,Matchday 3,Manchester United,Burnley,3,2,H
+2025-08-30,Matchday 3,Sunderland,Brentford,2,1,H
+2025-08-30,Matchday 3,Tottenham Hotspur,AFC Bournemouth,0,1,A
+2025-08-30,Matchday 3,Wolverhampton Wanderers,Everton,2,3,A
+2025-08-31,Matchday 3,Aston Villa,Crystal Palace,0,3,A
+2025-08-31,Matchday 3,Brighton & Hove Albion,Manchester City,2,1,H
+2025-08-31,Matchday 3,Liverpool,Arsenal,1,0,H
+2025-08-31,Matchday 3,Nottingham Forest,West Ham United,0,3,A
+2025-09-13,Matchday 4,AFC Bournemouth,Brighton & Hove Albion,2,1,H
+2025-09-13,Matchday 4,Arsenal,Nottingham Forest,3,0,H
+2025-09-13,Matchday 4,Brentford,Chelsea,2,2,D
+2025-09-13,Matchday 4,Fulham,Leeds United,1,0,H
+2025-09-13,Matchday 4,Newcastle United,Wolverhampton Wanderers,1,0,H
+2025-09-13,Matchday 4,West Ham United,Tottenham Hotspur,0,3,A
+2025-09-14,Matchday 4,Burnley,Liverpool,0,1,A
+2025-09-14,Matchday 4,Manchester City,Manchester United,3,0,H
+2025-09-20,Matchday 5,Brighton & Hove Albion,Tottenham Hotspur,2,2,D
+2025-09-20,Matchday 5,Burnley,Nottingham Forest,1,1,D
+2025-09-20,Matchday 5,Fulham,Brentford,3,1,H
+2025-09-20,Matchday 5,Liverpool,Everton,2,1,H
+2025-09-20,Matchday 5,Manchester United,Chelsea,2,1,H
+2025-09-20,Matchday 5,West Ham United,Crystal Palace,1,2,A
+2025-09-20,Matchday 5,Wolverhampton Wanderers,Leeds United,1,3,A
+2025-09-21,Matchday 5,Arsenal,Manchester City,1,1,D
+2025-09-21,Matchday 5,Sunderland,Aston Villa,1,1,D
+2025-09-27,Matchday 6,Brentford,Manchester United,3,1,H
+2025-09-27,Matchday 6,Chelsea,Brighton & Hove Albion,1,3,A
+2025-09-27,Matchday 6,Crystal Palace,Liverpool,2,1,H
+2025-09-27,Matchday 6,Leeds United,AFC Bournemouth,2,2,D
+2025-09-27,Matchday 6,Manchester City,Burnley,5,1,H
+2025-09-27,Matchday 6,Nottingham Forest,Sunderland,0,1,A
+2025-09-27,Matchday 6,Tottenham Hotspur,Wolverhampton Wanderers,1,1,D
+2025-09-28,Matchday 6,Aston Villa,Fulham,3,1,H
+2025-09-28,Matchday 6,Newcastle United,Arsenal,1,2,A
+2025-09-29,Matchday 6,Everton,West Ham United,1,1,D
+2025-10-03,Matchday 7,AFC Bournemouth,Fulham,3,1,H
+2025-10-04,Matchday 7,Arsenal,West Ham United,2,0,H
+2025-10-04,Matchday 7,Chelsea,Liverpool,2,1,H
+2025-10-04,Matchday 7,Leeds United,Tottenham Hotspur,1,2,A
+2025-10-04,Matchday 7,Manchester United,Sunderland,2,0,H
+2025-10-05,Matchday 7,Aston Villa,Burnley,2,1,H
+2025-10-05,Matchday 7,Brentford,Manchester City,0,1,A
+2025-10-05,Matchday 7,Everton,Crystal Palace,2,1,H
+2025-10-05,Matchday 7,Newcastle United,Nottingham Forest,2,0,H
+2025-10-05,Matchday 7,Wolverhampton Wanderers,Brighton & Hove Albion,1,1,D
+2025-10-18,Matchday 8,Brighton & Hove Albion,Newcastle United,2,1,H
+2025-10-18,Matchday 8,Burnley,Leeds United,2,0,H
+2025-10-18,Matchday 8,Crystal Palace,AFC Bournemouth,3,3,D
+2025-10-18,Matchday 8,Fulham,Arsenal,0,1,A
+2025-10-18,Matchday 8,Manchester City,Everton,2,0,H
+2025-10-18,Matchday 8,Nottingham Forest,Chelsea,0,3,A
+2025-10-18,Matchday 8,Sunderland,Wolverhampton Wanderers,2,0,H
+2025-10-19,Matchday 8,Liverpool,Manchester United,1,2,A
+2025-10-19,Matchday 8,Tottenham Hotspur,Aston Villa,1,2,A
+2025-10-20,Matchday 8,West Ham United,Brentford,0,2,A
+2025-10-24,Matchday 9,Leeds United,West Ham United,2,1,H
+2025-10-25,Matchday 9,Brentford,Liverpool,3,2,H
+2025-10-25,Matchday 9,Chelsea,Sunderland,1,2,A
+2025-10-25,Matchday 9,Manchester United,Brighton & Hove Albion,4,2,H
+2025-10-25,Matchday 9,Newcastle United,Fulham,2,1,H
+2025-10-26,Matchday 9,AFC Bournemouth,Nottingham Forest,2,0,H
+2025-10-26,Matchday 9,Arsenal,Crystal Palace,1,0,H
+2025-10-26,Matchday 9,Aston Villa,Manchester City,1,0,H
+2025-10-26,Matchday 9,Everton,Tottenham Hotspur,0,3,A
+2025-10-26,Matchday 9,Wolverhampton Wanderers,Burnley,2,3,A
+2025-11-01,Matchday 10,Brighton & Hove Albion,Leeds United,3,0,H
+2025-11-01,Matchday 10,Burnley,Arsenal,0,2,A
+2025-11-01,Matchday 10,Crystal Palace,Brentford,2,0,H
+2025-11-01,Matchday 10,Fulham,Wolverhampton Wanderers,3,0,H
+2025-11-01,Matchday 10,Liverpool,Aston Villa,2,0,H
+2025-11-01,Matchday 10,Nottingham Forest,Manchester United,2,2,D
+2025-11-01,Matchday 10,Tottenham Hotspur,Chelsea,0,1,A
+2025-11-02,Matchday 10,Manchester City,AFC Bournemouth,3,1,H
+2025-11-02,Matchday 10,West Ham United,Newcastle United,3,1,H
+2025-11-03,Matchday 10,Sunderland,Everton,1,1,D
+2025-11-08,Matchday 11,Chelsea,Wolverhampton Wanderers,3,0,H
+2025-11-08,Matchday 11,Everton,Fulham,2,0,H
+2025-11-08,Matchday 11,Sunderland,Arsenal,2,2,D
+2025-11-08,Matchday 11,Tottenham Hotspur,Manchester United,2,2,D
+2025-11-08,Matchday 11,West Ham United,Burnley,3,2,H
+2025-11-09,Matchday 11,Aston Villa,AFC Bournemouth,4,0,H
+2025-11-09,Matchday 11,Brentford,Newcastle United,3,1,H
+2025-11-09,Matchday 11,Manchester City,Liverpool,3,0,H
+2025-11-09,Matchday 11,Nottingham Forest,Leeds United,3,1,H
+2025-11-22,Matchday 12,AFC Bournemouth,West Ham United,2,2,D
+2025-11-22,Matchday 12,Brighton & Hove Albion,Brentford,2,1,H
+2025-11-22,Matchday 12,Burnley,Chelsea,0,2,A
+2025-11-22,Matchday 12,Fulham,Sunderland,1,0,H
+2025-11-22,Matchday 12,Liverpool,Nottingham Forest,0,3,A
+2025-11-22,Matchday 12,Newcastle United,Manchester City,2,1,H
+2025-11-22,Matchday 12,Wolverhampton Wanderers,Crystal Palace,0,2,A
+2025-11-23,Matchday 12,Arsenal,Tottenham Hotspur,4,1,H
+2025-11-23,Matchday 12,Leeds United,Aston Villa,1,2,A
+2025-11-24,Matchday 12,Manchester United,Everton,0,1,A
+2025-11-29,Matchday 13,Brentford,Burnley,3,1,H
+2025-11-29,Matchday 13,Everton,Newcastle United,1,4,A
+2025-11-29,Matchday 13,Manchester City,Leeds United,3,2,H
+2025-11-29,Matchday 13,Sunderland,AFC Bournemouth,3,2,H
+2025-11-29,Matchday 13,Tottenham Hotspur,Fulham,1,2,A
+2025-11-30,Matchday 13,Aston Villa,Wolverhampton Wanderers,1,0,H
+2025-11-30,Matchday 13,Chelsea,Arsenal,1,1,D
+2025-11-30,Matchday 13,Crystal Palace,Manchester United,1,2,A
+2025-11-30,Matchday 13,Nottingham Forest,Brighton & Hove Albion,0,2,A
+2025-11-30,Matchday 13,West Ham United,Liverpool,0,2,A
+2025-12-02,Matchday 14,AFC Bournemouth,Everton,0,1,A
+2025-12-02,Matchday 14,Fulham,Manchester City,4,5,A
+2025-12-02,Matchday 14,Newcastle United,Tottenham Hotspur,2,2,D
+2025-12-03,Matchday 14,Arsenal,Brentford,2,0,H
+2025-12-03,Matchday 14,Brighton & Hove Albion,Aston Villa,3,4,A
+2025-12-03,Matchday 14,Burnley,Crystal Palace,0,1,A
+2025-12-03,Matchday 14,Leeds United,Chelsea,3,1,H
+2025-12-03,Matchday 14,Liverpool,Sunderland,1,1,D
+2025-12-03,Matchday 14,Wolverhampton Wanderers,Nottingham Forest,0,1,A
+2025-12-04,Matchday 14,Manchester United,West Ham United,1,1,D
+2025-12-06,Matchday 15,Aston Villa,Arsenal,2,1,H
+2025-12-06,Matchday 15,Everton,Nottingham Forest,3,0,H
+2025-12-06,Matchday 15,Leeds United,Liverpool,3,3,D
+2025-12-06,Matchday 15,Manchester City,Sunderland,3,0,H
+2025-12-06,Matchday 15,Newcastle United,Burnley,2,1,H
+2025-12-06,Matchday 15,Tottenham Hotspur,Brentford,2,0,H
+2025-12-07,Matchday 15,Brighton & Hove Albion,West Ham United,1,1,D
+2025-12-07,Matchday 15,Fulham,Crystal Palace,1,2,A
+2025-12-08,Matchday 15,Wolverhampton Wanderers,Manchester United,1,4,A
+2025-12-13,Matchday 16,Arsenal,Wolverhampton Wanderers,2,1,H
+2025-12-13,Matchday 16,Burnley,Fulham,2,3,A
+2025-12-13,Matchday 16,Chelsea,Everton,2,0,H
+2025-12-13,Matchday 16,Liverpool,Brighton & Hove Albion,2,0,H
+2025-12-14,Matchday 16,Brentford,Leeds United,1,1,D
+2025-12-14,Matchday 16,Crystal Palace,Manchester City,0,3,A
+2025-12-14,Matchday 16,Nottingham Forest,Tottenham Hotspur,3,0,H
+2025-12-14,Matchday 16,Sunderland,Newcastle United,1,0,H
+2025-12-14,Matchday 16,West Ham United,Aston Villa,2,3,A
+2025-12-15,Matchday 16,Manchester United,AFC Bournemouth,4,4,D
+2025-12-20,Matchday 17,AFC Bournemouth,Burnley,1,1,D
+2025-12-20,Matchday 17,Everton,Arsenal,0,1,A
+2025-12-20,Matchday 17,Leeds United,Crystal Palace,4,1,H
+2025-12-20,Matchday 17,Manchester City,West Ham United,3,0,H
+2025-12-20,Matchday 17,Newcastle United,Chelsea,2,2,D
+2025-12-20,Matchday 17,Tottenham Hotspur,Liverpool,1,2,A
+2025-12-20,Matchday 17,Wolverhampton Wanderers,Brentford,0,2,A
+2025-12-21,Matchday 17,Aston Villa,Manchester United,2,1,H
+2025-12-22,Matchday 17,Fulham,Nottingham Forest,1,0,H
+2025-12-26,Matchday 18,Manchester United,Newcastle United,1,0,H
+2025-12-27,Matchday 18,Arsenal,Brighton & Hove Albion,2,1,H
+2025-12-27,Matchday 18,Brentford,AFC Bournemouth,4,1,H
+2025-12-27,Matchday 18,Chelsea,Aston Villa,1,2,A
+2025-12-27,Matchday 18,Liverpool,Wolverhampton Wanderers,2,1,H
+2025-12-27,Matchday 18,Nottingham Forest,Manchester City,1,2,A
+2025-12-27,Matchday 18,West Ham United,Fulham,0,1,A
+2025-12-28,Matchday 18,Crystal Palace,Tottenham Hotspur,0,1,A
+2025-12-28,Matchday 18,Sunderland,Leeds United,1,1,D
+2025-12-30,Matchday 19,Arsenal,Aston Villa,4,1,H
+2025-12-30,Matchday 19,Burnley,Newcastle United,1,3,A
+2025-12-30,Matchday 19,Chelsea,AFC Bournemouth,2,2,D
+2025-12-30,Matchday 19,Manchester United,Wolverhampton Wanderers,1,1,D
+2025-12-30,Matchday 19,Nottingham Forest,Everton,0,2,A
+2025-12-30,Matchday 19,West Ham United,Brighton & Hove Albion,2,2,D
+2026-01-01,Matchday 19,Crystal Palace,Fulham,1,1,D
+2026-01-03,Matchday 20,AFC Bournemouth,Arsenal,2,3,A
+2026-01-03,Matchday 20,Aston Villa,Nottingham Forest,3,1,H
+2026-01-03,Matchday 20,Brighton & Hove Albion,Burnley,2,0,H
+2026-01-03,Matchday 20,Wolverhampton Wanderers,West Ham United,3,0,H
+2026-01-04,Matchday 20,Everton,Brentford,2,4,A
+2026-01-04,Matchday 20,Fulham,Liverpool,2,2,D
+2026-01-04,Matchday 20,Leeds United,Manchester United,1,1,D
+2026-01-04,Matchday 20,Manchester City,Chelsea,1,1,D
+2026-01-04,Matchday 20,Newcastle United,Crystal Palace,2,0,H
+2026-01-04,Matchday 20,Tottenham Hotspur,Sunderland,1,1,D
+2026-01-06,Matchday 21,West Ham United,Nottingham Forest,1,2,A
+2026-01-07,Matchday 21,AFC Bournemouth,Tottenham Hotspur,3,2,H
+2026-01-07,Matchday 21,Brentford,Sunderland,3,0,H
+2026-01-07,Matchday 21,Burnley,Manchester United,2,2,D
+2026-01-07,Matchday 21,Everton,Wolverhampton Wanderers,1,1,D
+2026-01-07,Matchday 21,Fulham,Chelsea,2,1,H
+2026-01-07,Matchday 21,Manchester City,Brighton & Hove Albion,1,1,D
+2026-01-07,Matchday 21,Newcastle United,Leeds United,4,3,H
+2026-01-17,Matchday 22,Chelsea,Brentford,2,0,H
+2026-01-17,Matchday 22,Leeds United,Fulham,1,0,H
+2026-01-17,Matchday 22,Liverpool,Burnley,1,1,D
+2026-01-17,Matchday 22,Manchester United,Manchester City,2,0,H
+2026-01-17,Matchday 22,Sunderland,Crystal Palace,2,1,H
+2026-01-17,Matchday 22,Tottenham Hotspur,West Ham United,1,2,A
+2026-01-18,Matchday 22,Aston Villa,Everton,0,1,A
+2026-01-19,Matchday 22,Brighton & Hove Albion,AFC Bournemouth,1,1,D
+2026-01-24,Matchday 23,AFC Bournemouth,Liverpool,3,2,H
+2026-01-24,Matchday 23,Burnley,Tottenham Hotspur,2,2,D
+2026-01-24,Matchday 23,Fulham,Brighton & Hove Albion,2,1,H
+2026-01-24,Matchday 23,Manchester City,Wolverhampton Wanderers,2,0,H
+2026-01-24,Matchday 23,West Ham United,Sunderland,3,1,H
+2026-01-25,Matchday 23,Arsenal,Manchester United,2,3,A
+2026-01-25,Matchday 23,Brentford,Nottingham Forest,0,2,A
+2026-01-25,Matchday 23,Crystal Palace,Chelsea,1,3,A
+2026-01-25,Matchday 23,Newcastle United,Aston Villa,0,2,A
+2026-01-26,Matchday 23,Everton,Leeds United,1,1,D
+2026-01-31,Matchday 24,Brighton & Hove Albion,Everton,1,1,D
+2026-01-31,Matchday 24,Chelsea,West Ham United,3,2,H
+2026-01-31,Matchday 24,Leeds United,Arsenal,0,4,A
+2026-01-31,Matchday 24,Liverpool,Newcastle United,4,1,H
+2026-01-31,Matchday 24,Wolverhampton Wanderers,AFC Bournemouth,0,2,A
+2026-02-01,Matchday 24,Aston Villa,Brentford,0,1,A
+2026-02-01,Matchday 24,Manchester United,Fulham,3,2,H
+2026-02-01,Matchday 24,Nottingham Forest,Crystal Palace,1,1,D
+2026-02-01,Matchday 24,Tottenham Hotspur,Manchester City,2,2,D
+2026-02-02,Matchday 24,Sunderland,Burnley,3,0,H
+2026-02-06,Matchday 25,Leeds United,Nottingham Forest,3,1,H
+2026-02-07,Matchday 25,AFC Bournemouth,Aston Villa,1,1,D
+2026-02-07,Matchday 25,Arsenal,Sunderland,3,0,H
+2026-02-07,Matchday 25,Burnley,West Ham United,0,2,A
+2026-02-07,Matchday 25,Fulham,Everton,1,2,A
+2026-02-07,Matchday 25,Manchester United,Tottenham Hotspur,2,0,H
+2026-02-07,Matchday 25,Newcastle United,Brentford,2,3,A
+2026-02-07,Matchday 25,Wolverhampton Wanderers,Chelsea,1,3,A
+2026-02-08,Matchday 25,Brighton & Hove Albion,Crystal Palace,0,1,A
+2026-02-08,Matchday 25,Liverpool,Manchester City,1,2,A
+2026-02-10,Matchday 26,Chelsea,Leeds United,2,2,D
+2026-02-10,Matchday 26,Everton,AFC Bournemouth,1,2,A
+2026-02-10,Matchday 26,Tottenham Hotspur,Newcastle United,1,2,A
+2026-02-10,Matchday 26,West Ham United,Manchester United,1,1,D
+2026-02-11,Matchday 26,Aston Villa,Brighton & Hove Albion,1,0,H
+2026-02-11,Matchday 26,Crystal Palace,Burnley,2,3,A
+2026-02-11,Matchday 26,Manchester City,Fulham,3,0,H
+2026-02-11,Matchday 26,Sunderland,Liverpool,0,1,A
+2026-02-12,Matchday 26,Brentford,Arsenal,1,1,D
+2026-02-18,Matchday 31,Wolverhampton Wanderers,Arsenal,2,2,D
+2026-02-21,Matchday 27,Aston Villa,Leeds United,1,1,D
+2026-02-21,Matchday 27,Brentford,Brighton & Hove Albion,0,2,A
+2026-02-21,Matchday 27,Chelsea,Burnley,1,1,D
+2026-02-21,Matchday 27,Manchester City,Newcastle United,2,1,H
+2026-02-22,Matchday 27,Crystal Palace,Wolverhampton Wanderers,1,0,H
+2026-02-22,Matchday 27,Nottingham Forest,Liverpool,0,1,A
+2026-02-22,Matchday 27,Sunderland,Fulham,1,3,A
+2026-02-22,Matchday 27,Tottenham Hotspur,Arsenal,1,4,A
+2026-02-23,Matchday 27,Everton,Manchester United,0,1,A
+2026-02-27,Matchday 28,Wolverhampton Wanderers,Aston Villa,2,0,H
+2026-02-28,Matchday 28,AFC Bournemouth,Sunderland,1,1,D
+2026-02-28,Matchday 28,Burnley,Brentford,3,4,A
+2026-02-28,Matchday 28,Leeds United,Manchester City,0,1,A
+2026-02-28,Matchday 28,Liverpool,West Ham United,5,2,H
+2026-02-28,Matchday 28,Newcastle United,Everton,2,3,A
+2026-03-01,Matchday 28,Arsenal,Chelsea,2,1,H
+2026-03-01,Matchday 28,Brighton & Hove Albion,Nottingham Forest,2,1,H
+2026-03-01,Matchday 28,Fulham,Tottenham Hotspur,2,1,H
+2026-03-01,Matchday 28,Manchester United,Crystal Palace,2,1,H
+2026-03-03,Matchday 29,Everton,Burnley,2,0,H
+2026-03-03,Matchday 29,Leeds United,Sunderland,0,1,A
+2026-03-03,Matchday 29,Wolverhampton Wanderers,Liverpool,2,1,H
+2026-03-04,Matchday 29,Aston Villa,Chelsea,1,4,A
+2026-03-04,Matchday 29,Brighton & Hove Albion,Arsenal,0,1,A
+2026-03-04,Matchday 29,Fulham,West Ham United,0,1,A
+2026-03-04,Matchday 29,Manchester City,Nottingham Forest,2,2,D
+2026-03-04,Matchday 29,Newcastle United,Manchester United,2,1,H
+2026-03-05,Matchday 29,Tottenham Hotspur,Crystal Palace,1,3,A
+2026-03-14,Matchday 30,Arsenal,Everton,2,0,H
+2026-03-14,Matchday 30,Chelsea,Newcastle United,0,1,A
+2026-03-14,Matchday 30,Sunderland,Brighton & Hove Albion,0,1,A
+2026-03-14,Matchday 30,West Ham United,Manchester City,1,1,D
+2026-03-15,Matchday 30,Liverpool,Tottenham Hotspur,1,1,D
+2026-03-15,Matchday 30,Manchester United,Aston Villa,3,1,H
+2026-03-16,Matchday 30,Brentford,Wolverhampton Wanderers,2,2,D
+2026-03-20,Matchday 31,AFC Bournemouth,Manchester United,2,2,D
+2026-03-21,Matchday 31,Brighton & Hove Albion,Liverpool,2,1,H
+2026-03-21,Matchday 31,Everton,Chelsea,3,0,H
+2026-03-21,Matchday 31,Fulham,Burnley,3,1,H
+2026-03-22,Matchday 31,Aston Villa,West Ham United,2,0,H
+2026-03-22,Matchday 31,Newcastle United,Sunderland,1,2,A
+2026-03-22,Matchday 31,Tottenham Hotspur,Nottingham Forest,0,3,A
+2026-04-10,Matchday 32,West Ham United,Wolverhampton Wanderers,4,0,H
+2026-04-11,Matchday 32,Arsenal,AFC Bournemouth,1,2,A
+2026-04-11,Matchday 32,Brentford,Everton,2,2,D
+2026-04-11,Matchday 32,Burnley,Brighton & Hove Albion,0,2,A
+2026-04-11,Matchday 32,Liverpool,Fulham,2,0,H
+2026-04-12,Matchday 32,Chelsea,Manchester City,0,3,A
+2026-04-12,Matchday 32,Crystal Palace,Newcastle United,2,1,H
+2026-04-12,Matchday 32,Nottingham Forest,Aston Villa,1,1,D
+2026-04-12,Matchday 32,Sunderland,Tottenham Hotspur,1,0,H
+2026-04-13,Matchday 32,Manchester United,Leeds United,1,2,A
+2026-04-18,Matchday 33,Chelsea,Manchester United,0,1,A
+2026-04-18,Matchday 33,Leeds United,Wolverhampton Wanderers,3,0,H
+2026-04-18,Matchday 33,Newcastle United,AFC Bournemouth,1,2,A
+2026-04-18,Matchday 33,Tottenham Hotspur,Brighton & Hove Albion,2,2,D
+2026-04-19,Matchday 33,Aston Villa,Sunderland,4,3,H
+2026-04-19,Matchday 33,Everton,Liverpool,1,2,A
+2026-04-19,Matchday 33,Manchester City,Arsenal,2,1,H
+2026-04-19,Matchday 33,Nottingham Forest,Burnley,4,1,H
+2026-04-21,Matchday 34,Brighton & Hove Albion,Chelsea,3,0,H
+2026-04-22,Matchday 34,AFC Bournemouth,Leeds United,2,2,D
+2026-04-22,Matchday 34,Burnley,Manchester City,0,1,A
+2026-04-24,Matchday 34,Sunderland,Nottingham Forest,0,5,A
+2026-04-25,Matchday 34,Arsenal,Newcastle United,1,0,H
+2026-04-25,Matchday 34,Fulham,Aston Villa,1,0,H
+2026-04-25,Matchday 34,Liverpool,Crystal Palace,3,1,H
+2026-04-25,Matchday 34,West Ham United,Everton,2,1,H
+2026-04-25,Matchday 34,Wolverhampton Wanderers,Tottenham Hotspur,0,1,A
+2026-04-27,Matchday 34,Manchester United,Brentford,2,1,H
+2026-05-01,Matchday 35,Leeds United,Burnley,3,1,H
+2026-05-02,Matchday 35,Arsenal,Fulham,3,0,H
+2026-05-02,Matchday 35,Brentford,West Ham United,3,0,H
+2026-05-02,Matchday 35,Newcastle United,Brighton & Hove Albion,3,1,H
+2026-05-02,Matchday 35,Wolverhampton Wanderers,Sunderland,1,1,D
+2026-05-03,Matchday 35,AFC Bournemouth,Crystal Palace,3,0,H
+2026-05-03,Matchday 35,Aston Villa,Tottenham Hotspur,1,2,A
+2026-05-03,Matchday 35,Manchester United,Liverpool,3,2,H
+2026-05-04,Matchday 35,Chelsea,Nottingham Forest,1,3,A
+2026-05-04,Matchday 35,Everton,Manchester City,3,3,D
+2026-05-09,Matchday 36,Brighton & Hove Albion,Wolverhampton Wanderers,3,0,H
+2026-05-09,Matchday 36,Fulham,AFC Bournemouth,0,1,A
+2026-05-09,Matchday 36,Liverpool,Chelsea,1,1,D
+2026-05-09,Matchday 36,Manchester City,Brentford,3,0,H
+2026-05-10,Matchday 36,Burnley,Aston Villa,2,2,D
+2026-05-10,Matchday 36,Crystal Palace,Everton,2,2,D
+2026-05-10,Matchday 36,Nottingham Forest,Newcastle United,1,1,D
+2026-05-10,Matchday 36,West Ham United,Arsenal,0,1,A
+2026-05-11,Matchday 36,Tottenham Hotspur,Leeds United,1,1,D
+2026-05-13,Matchday 31,Manchester City,Crystal Palace,3,0,H
+2026-05-15,Matchday 37,Aston Villa,Liverpool,4,2,H
+2026-05-17,Matchday 37,Brentford,Crystal Palace,2,2,D
+2026-05-17,Matchday 37,Everton,Sunderland,1,3,A
+2026-05-17,Matchday 37,Leeds United,Brighton & Hove Albion,1,0,H
+2026-05-17,Matchday 37,Manchester United,Nottingham Forest,3,2,H
+2026-05-17,Matchday 37,Newcastle United,West Ham United,3,1,H
+2026-05-17,Matchday 37,Wolverhampton Wanderers,Fulham,1,1,D
+2026-05-18,Matchday 37,Arsenal,Burnley,1,0,H
+2026-05-19,Matchday 37,AFC Bournemouth,Manchester City,1,1,D
+2026-05-19,Matchday 37,Chelsea,Tottenham Hotspur,2,1,H
+2026-05-24,Matchday 38,Brighton & Hove Albion,Manchester United,0,3,A
+2026-05-24,Matchday 38,Burnley,Wolverhampton Wanderers,1,1,D
+2026-05-24,Matchday 38,Crystal Palace,Arsenal,1,2,A
+2026-05-24,Matchday 38,Fulham,Newcastle United,2,0,H
+2026-05-24,Matchday 38,Liverpool,Brentford,1,1,D
+2026-05-24,Matchday 38,Manchester City,Aston Villa,1,2,A
+2026-05-24,Matchday 38,Nottingham Forest,AFC Bournemouth,1,1,D
+2026-05-24,Matchday 38,Sunderland,Chelsea,2,1,H
+2026-05-24,Matchday 38,Tottenham Hotspur,Everton,1,0,H
+2026-05-24,Matchday 38,West Ham United,Leeds United,3,0,H

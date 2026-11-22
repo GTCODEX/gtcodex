@@ -1,0 +1,46 @@
+date,round,home,away,home_goals,away_goals,result
+2026-08-21,Matchday 1,Arsenal,Coventry City,3,0,H
+2026-08-22,Matchday 1,Brentford,Tottenham Hotspur,3,0,H
+2026-08-22,Matchday 1,Everton,Crystal Palace,2,0,H
+2026-08-22,Matchday 1,Hull City,Manchester United,2,0,H
+2026-08-22,Matchday 1,Ipswich Town,Sunderland,2,1,H
+2026-08-22,Matchday 1,Nottingham Forest,Leeds United,0,1,A
+2026-08-23,Matchday 1,Brighton & Hove Albion,Aston Villa,4,0,H
+2026-08-23,Matchday 1,Manchester City,AFC Bournemouth,2,1,H
+2026-08-23,Matchday 1,Newcastle United,Liverpool,2,2,D
+2026-08-24,Matchday 1,Fulham,Chelsea,2,3,A
+2026-08-28,Matchday 2,Crystal Palace,Manchester City,1,4,A
+2026-08-29,Matchday 2,AFC Bournemouth,Everton,1,1,D
+2026-08-29,Matchday 2,Coventry City,Hull City,0,1,A
+2026-08-29,Matchday 2,Liverpool,Nottingham Forest,2,2,D
+2026-08-29,Matchday 2,Tottenham Hotspur,Newcastle United,0,2,A
+2026-08-30,Matchday 2,Chelsea,Brighton & Hove Albion,4,3,H
+2026-08-30,Matchday 2,Leeds United,Brentford,1,1,D
+2026-08-30,Matchday 2,Manchester United,Ipswich Town,5,2,H
+2026-08-30,Matchday 2,Sunderland,Fulham,1,0,H
+2026-08-31,Matchday 2,Aston Villa,Arsenal,0,1,A
+2026-09-04,Matchday 3,Ipswich Town,Liverpool,0,2,A
+2026-09-05,Matchday 3,Brentford,Sunderland,1,1,D
+2026-09-05,Matchday 3,Brighton & Hove Albion,Leeds United,1,1,D
+2026-09-05,Matchday 3,Fulham,Crystal Palace,2,3,A
+2026-09-05,Matchday 3,Manchester City,Coventry City,1,0,H
+2026-09-05,Matchday 3,Newcastle United,AFC Bournemouth,2,2,D
+2026-09-06,Matchday 3,Arsenal,Chelsea,2,1,H
+2026-09-06,Matchday 3,Everton,Manchester United,2,2,D
+2026-09-12,Matchday 4,AFC Bournemouth,Brentford,2,2,D
+2026-09-12,Matchday 4,Aston Villa,Nottingham Forest,1,2,A
+2026-09-12,Matchday 4,Chelsea,Hull City,2,2,D
+2026-09-12,Matchday 4,Crystal Palace,Ipswich Town,2,3,A
+2026-09-12,Matchday 4,Sunderland,Arsenal,0,2,A
+2026-09-13,Matchday 4,Coventry City,Brighton & Hove Albion,0,5,A
+2026-09-13,Matchday 4,Manchester United,Manchester City,0,1,A
+2026-09-14,Matchday 4,Leeds United,Newcastle United,4,1,H
+2026-09-18,Matchday 5,Brentford,Chelsea,3,0,H
+2026-09-19,Matchday 5,Brighton & Hove Albion,Arsenal,3,0,H
+2026-09-19,Matchday 5,Everton,Ipswich Town,1,0,H
+2026-09-19,Matchday 5,Newcastle United,Hull City,2,1,H
+2026-09-19,Matchday 5,Nottingham Forest,Coventry City,0,1,A
+2026-09-19,Matchday 5,Tottenham Hotspur,Aston Villa,2,3,A
+2026-09-20,Matchday 5,AFC Bournemouth,Liverpool,0,1,A
+2026-09-20,Matchday 5,Fulham,Manchester United,1,1,D
+2026-09-20,Matchday 5,Manchester City,Sunderland,5,3,H

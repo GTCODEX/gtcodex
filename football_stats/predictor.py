@@ -324,49 +324,59 @@ def fit_predictor(train: Sequence[d.Match], config: PredictorConfig | None = Non
     matches = sorted(train, key=lambda m: (m.date, m.home))
     if len(matches) < 60:
         raise ValueError("need at least 60 matches to fit a predictor")
-    holdout_n = max(20, int(len(matches) * cfg.holdout_frac))
-    fit_matches, holdout = matches[:-holdout_n], matches[-holdout_n:]
+    if cfg.holdout_frac > 0:
+        holdout_n = max(20, int(len(matches) * cfg.holdout_frac))
+        fit_matches, holdout = matches[:-holdout_n], matches[-holdout_n:]
+    else:
+        # "Predict now": use every match for fitting, skip holdout tuning.
+        fit_matches, holdout = matches, []
 
     poisson = m.fit_poisson(fit_matches, decay=cfg.decay, ridge=cfg.ridge,
                             fit_rho=cfg.fit_rho)
     elo = fit_elo_signal(fit_matches, k=cfg.k, home_advantage=cfg.home_advantage)
 
     # --- tune the blend weights on the holdout --------------------------------
-    signals = _holdout_signals(holdout, poisson, elo)
-    best_w, best_ll = None, math.inf
-    n_steps = int(round(1.0 / cfg.grid_step))
-    steps = [i * cfg.grid_step for i in range(n_steps + 1)]
-    for wp in steps:
-        for we in steps:
-            if wp + we > 1.0 + 1e-9:
-                continue
-            wo = max(0.0, 1.0 - wp - we)
-            ll = _signals_log_loss(signals, wp, we, wo)
-            if ll < best_ll:
-                best_ll, best_w = ll, (wp, we, wo)
-    wp, we, wo = best_w
-    cfg.poisson_weight, cfg.elo_weight, cfg.odds_weight = wp, we, wo
+    if holdout:
+        signals = _holdout_signals(holdout, poisson, elo)
+        best_w, best_ll = None, math.inf
+        n_steps = int(round(1.0 / cfg.grid_step))
+        steps = [i * cfg.grid_step for i in range(n_steps + 1)]
+        for wp in steps:
+            for we in steps:
+                if wp + we > 1.0 + 1e-9:
+                    continue
+                wo = max(0.0, 1.0 - wp - we)
+                ll = _signals_log_loss(signals, wp, we, wo)
+                if ll < best_ll:
+                    best_ll, best_w = ll, (wp, we, wo)
+        wp, we, wo = best_w
+        cfg.poisson_weight, cfg.elo_weight, cfg.odds_weight = wp, we, wo
 
-    # --- temperature calibration on the holdout ------------------------------
-    temp = 1.0
-    if cfg.calibrate:
-        best_t, best_ll = 1.0, math.inf
-        t = 0.5
-        while t <= 2.5001:
-            ll = _signals_log_loss(signals, wp, we, wo, temperature=t)
-            if ll < best_ll:
-                best_ll, best_t = ll, t
-            t += cfg.temp_step
-        temp = best_t
+        # --- temperature calibration on the holdout --------------------------
+        temp = 1.0
+        if cfg.calibrate:
+            best_t = 1.0
+            t = 0.5
+            while t <= 2.5001:
+                ll = _signals_log_loss(signals, wp, we, wo, temperature=t)
+                if ll < best_ll:
+                    best_ll, best_t = ll, t
+                t += cfg.temp_step
+            temp = best_t
+    else:
+        wp, we, wo = cfg.poisson_weight, cfg.elo_weight, cfg.odds_weight
+        temp = 1.0
+        best_ll = None
 
     pred = Predictor(poisson=poisson, elo=elo, config=cfg, temperature=temp,
                      source="poisson+elo", n_train=len(fit_matches),
-                     diagnostics={"holdout_log_loss": best_ll, "blend_weights": best_w})
+                     diagnostics={"holdout_log_loss": best_ll, "blend_weights": (wp, we, wo)})
     if verbose:
         print(f"  fitted on {len(fit_matches)} matches "
               f"(holdout {len(holdout)})")
         print(f"  blend weights: poisson {wp:.2f}  elo {we:.2f}  odds {wo:.2f}")
-        print(f"  temperature: {temp:.2f}   holdout log-loss: {best_ll:.4f}")
+        print(f"  temperature: {temp:.2f}"
+              + (f"   holdout log-loss: {best_ll:.4f}" if best_ll is not None else ""))
     return pred
 
 

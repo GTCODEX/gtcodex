@@ -29,6 +29,16 @@ SOURCES = {
         "football-data.co.uk/england/2019-2020/Premier.csv",
         "master",
     ),
+    "openfootball_epl_2025_26": (
+        "openfootball/football.json",
+        "2025-26/en.1.json",
+        "master",
+    ),
+    "openfootball_epl_2026_27": (
+        "openfootball/football.json",
+        "2026-27/en.1.json",
+        "master",
+    ),
 }
 
 UA = "football-stats-learning/1.0 (educational; stdlib urllib)"

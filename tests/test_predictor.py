@@ -177,12 +177,13 @@ class TestPredictorEndpoints(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertIn("Match Outcome Predictor", body)
 
-    def test_datasets_endpoint_lists_both_seasons(self):
+    def test_datasets_endpoint_lists_all_seasons(self):
         code, body = self._req("/api/predictor/datasets")
         self.assertEqual(code, 200)
         payload = json.loads(body)
         ids = {x["id"] for x in payload}
-        self.assertEqual(ids, {"epl_2018_19", "epl_2019_20"})
+        self.assertEqual(ids, {"epl_2018_19", "epl_2019_20",
+                               "epl_2025_26", "epl_2026_27"})
         self.assertTrue(all(len(x["teams"]) == 20 for x in payload))
 
     def test_teams_endpoint(self):
