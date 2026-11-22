@@ -86,15 +86,20 @@ class PoissonModel:
         """Alias used by the evaluation examples."""
         return self.match_probabilities(home, away)
 
-    def log_likelihood(self, matches: Sequence[d.Match]) -> float:
-        """Log-likelihood of the observed scores under the model."""
+    def log_likelihood(self, matches: Sequence[d.Match],
+                       weights: Sequence[float] | None = None) -> float:
+        """Log-likelihood of the observed scores under the model.
+
+        ``weights`` optionally down-weights older matches (time decay).
+        """
         total = 0.0
-        for m in matches:
+        for i, m in enumerate(matches):
             lh, la = self.lambdas(m.home, m.away)
             p = st.poisson_pmf(m.home_goals, lh) * st.poisson_pmf(m.away_goals, la)
             if self.rho:
                 p *= _dc_tau(m.home_goals, m.away_goals, lh, la, self.rho)
-            total += math.log(max(p, 1e-300))
+            w = 1.0 if weights is None else weights[i]
+            total += w * math.log(max(p, 1e-300))
         return total
 
     def ratings_table(self) -> list[dict]:
@@ -134,17 +139,24 @@ def _apply_dc(probs: list[list[float]], lh: float, la: float, rho: float) -> lis
 
 
 def fit_poisson(matches: Sequence[d.Match], iterations: int = 60,
-                fit_rho: bool = True) -> PoissonModel:
+                fit_rho: bool = True, decay: float = 1.0,
+                ridge: float = 0.0) -> PoissonModel:
     """Fit attack/defence ratings by maximum likelihood (Newton-Raphson / IRLS).
 
     The model is a Poisson GLM, so Newton's method uses the exact Hessian
     H = X' W X with W = diag(lambda_home, lambda_away). A tiny ridge term keeps the
     system non-singular along the (attack, defence) shift direction, which is then
     removed by centring the ratings after each step.
+
+    ``decay`` (<= 1.0) weights matches by recency — team strength drifts, so older
+    results should count for less. ``ridge`` shrinks the ratings toward the league
+    average, which reduces overfitting on small samples.
     """
     matches = list(matches)
     if not matches:
         raise ValueError("no matches to fit")
+    if not 0.0 < decay <= 1.0:
+        raise ValueError("decay must be in (0, 1]")
     teams = d.team_names(matches)
     t = len(teams)
     idx = {name: i for i, name in enumerate(teams)}
@@ -154,6 +166,14 @@ def fit_poisson(matches: Sequence[d.Match], iterations: int = 60,
     theta = [0.0] * p
     theta[0] = mu
 
+    # Recency weights: most recent match has weight 1, the oldest decay ** (n - 1).
+    n = len(matches)
+    order = sorted(range(n), key=lambda i: (matches[i].date, matches[i].home))
+    weights = [1.0] * n
+    if decay < 1.0:
+        for rank, i in enumerate(order):
+            weights[i] = decay ** (n - 1 - rank)
+
     def unpack(th):
         return th[0], th[1], th[2:2 + t], th[2 + t:2 + 2 * t]
 
@@ -162,14 +182,16 @@ def fit_poisson(matches: Sequence[d.Match], iterations: int = 60,
         ll = 0.0
         grad = [0.0] * p
         H = [[0.0] * p for _ in range(p)]
-        for m in matches:
+        for i, m in enumerate(matches):
+            w = weights[i]
             ih, ia = idx[m.home], idx[m.away]
             lh = math.exp(mu_ + ha_ + att[ih] - dfn[ia])
             la = math.exp(mu_ + att[ia] - dfn[ih])
-            ll += m.home_goals * math.log(lh) - lh + m.away_goals * math.log(la) - la
+            ll += w * (m.home_goals * math.log(lh) - lh
+                       + m.away_goals * math.log(la) - la)
             # design rows: [mu, ha, attack vector, defence vector]
-            rh = m.home_goals - lh
-            ra = m.away_goals - la
+            rh = w * (m.home_goals - lh)
+            ra = w * (m.away_goals - la)
             grad[0] += rh + ra
             grad[1] += rh
             grad[2 + ih] += rh
@@ -187,7 +209,7 @@ def fit_poisson(matches: Sequence[d.Match], iterations: int = 60,
                 if x[a] == 0.0:
                     continue
                 for b in range(a, p):
-                    H[a][b] += lh * x[a] * x[b]
+                    H[a][b] += w * lh * x[a] * x[b]
             # away response
             y = [0.0] * p
             y[0] = 1.0
@@ -197,7 +219,15 @@ def fit_poisson(matches: Sequence[d.Match], iterations: int = 60,
                 if y[a] == 0.0:
                     continue
                 for b in range(a, p):
-                    H[a][b] += la * y[a] * y[b]
+                    H[a][b] += w * la * y[a] * y[b]
+        # ridge penalty on the ratings (shrinkage toward the league average)
+        if ridge > 0.0:
+            for j in range(t):
+                ll -= 0.5 * ridge * (att[j] ** 2 + dfn[j] ** 2)
+                grad[2 + j] -= ridge * att[j]
+                grad[2 + t + j] -= ridge * dfn[j]
+                H[2 + j][2 + j] += ridge
+                H[2 + t + j][2 + t + j] += ridge
         for a in range(p):
             for b in range(a):
                 H[a][b] = H[b][a]
@@ -234,12 +264,12 @@ def fit_poisson(matches: Sequence[d.Match], iterations: int = 60,
     model = PoissonModel(teams, attack, defence, mu_, ha_, rho=0.0, n_matches=len(matches))
 
     if fit_rho:
-        # Grid-search the Dixon-Coles rho by maximising log-likelihood.
-        best_rho, best_ll = 0.0, model.log_likelihood(matches)
+        # Grid-search the Dixon-Coles rho by maximising (weighted) log-likelihood.
+        best_rho, best_ll = 0.0, model.log_likelihood(matches, weights)
         rho = -0.20
         while rho <= 0.2001:
             model.rho = rho
-            ll = model.log_likelihood(matches)
+            ll = model.log_likelihood(matches, weights)
             if ll > best_ll:
                 best_ll, best_rho = ll, rho
             rho += 0.005
