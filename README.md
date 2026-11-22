@@ -197,6 +197,10 @@ python -m football_stats.examples.01_descriptive_statistics   # or start the cou
 python -m unittest tests.test_football_stats -v               # 47 tests
 ```
 
+There is also a **web dashboard**: run `python server.py` and open `/predictor.html`
+(or click **⚽ Match Predictor** in the app header) to pick teams, blend in odds and
+see the measured accuracy in your browser.
+
 **Predicting a match** blends a Poisson model, Elo ratings and (optionally) the
 bookmaker's odds, tunes the blend on held-out data, and calibrates the probabilities.
 On a walk-forward backtest it scores **56.8%** 1X2 accuracy (95% CI 49.7–63.7%) and a

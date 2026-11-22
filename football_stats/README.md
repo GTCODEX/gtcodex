@@ -64,6 +64,8 @@ python -m football_stats.predict --backtest          # measure real accuracy
 python -m football_stats.predict --season epl_2019_20 --train epl_2018_19
 ```
 
+Or use the web dashboard: `python server.py`, then open `/predictor.html`.
+
 The predictor blends a Poisson model, Elo ratings and (when supplied) the bookmaker's
 odds. Blend weights are tuned on held-out data and the probabilities are calibrated.
 

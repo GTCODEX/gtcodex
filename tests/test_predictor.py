@@ -1,13 +1,19 @@
 """Tests for the outcome predictor and its honest evaluation."""
+import json
 import math
 import sys
+import threading
 import unittest
+import urllib.error
+import urllib.request
+from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+import server
 from football_stats import data as d
 from football_stats import predictor as p
 
@@ -140,6 +146,80 @@ class TestDecayAndRidge(unittest.TestCase):
         spread_plain = max(plain.attack.values()) - min(plain.attack.values())
         spread_shrunk = max(shrunk.attack.values()) - min(shrunk.attack.values())
         self.assertLess(spread_shrunk, spread_plain)
+
+
+class TestPredictorEndpoints(unittest.TestCase):
+    """The dashboard's API, served by the same handler as LeadFinder."""
+
+    def setUp(self):
+        self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), server.H)
+        self.port = self.httpd.server_address[1]
+        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        self.thread.start()
+
+    def tearDown(self):
+        self.httpd.shutdown()
+        self.httpd.server_close()
+
+    def _req(self, path, method="GET", payload=None, timeout=120):
+        url = f"http://127.0.0.1:{self.port}{path}"
+        data = json.dumps(payload).encode() if payload is not None else None
+        headers = {"Content-Type": "application/json"} if payload is not None else {}
+        req = urllib.request.Request(url, data=data, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return resp.status, resp.read().decode("utf-8")
+        except urllib.error.HTTPError as e:
+            return e.code, e.read().decode("utf-8")
+
+    def test_predictor_page_is_served(self):
+        code, body = self._req("/predictor.html")
+        self.assertEqual(code, 200)
+        self.assertIn("Match Outcome Predictor", body)
+
+    def test_datasets_endpoint_lists_both_seasons(self):
+        code, body = self._req("/api/predictor/datasets")
+        self.assertEqual(code, 200)
+        payload = json.loads(body)
+        ids = {x["id"] for x in payload}
+        self.assertEqual(ids, {"epl_2018_19", "epl_2019_20"})
+        self.assertTrue(all(len(x["teams"]) == 20 for x in payload))
+
+    def test_teams_endpoint(self):
+        code, body = self._req("/api/predictor/teams?dataset=epl_2018_19")
+        self.assertEqual(code, 200)
+        self.assertIn("Arsenal", json.loads(body)["teams"])
+
+    def test_teams_endpoint_rejects_unknown_dataset(self):
+        code, _ = self._req("/api/predictor/teams?dataset=nope")
+        self.assertEqual(code, 400)
+
+    def test_predict_endpoint(self):
+        code, body = self._req("/api/predictor/predict", method="POST",
+                               payload={"dataset": "epl_2018_19",
+                                        "home": "Arsenal", "away": "Chelsea"})
+        self.assertEqual(code, 200)
+        payload = json.loads(body)
+        self.assertAlmostEqual(payload["home_win"] + payload["draw"]
+                               + payload["away_win"], 1.0, places=4)
+        self.assertIn(payload["most_likely_outcome"], ("H", "D", "A"))
+
+    def test_predict_endpoint_blends_odds(self):
+        code, body = self._req("/api/predictor/predict", method="POST",
+                               payload={"dataset": "epl_2018_19", "home": "Arsenal",
+                                        "away": "Chelsea", "odds": [2.1, 3.4, 3.6]})
+        self.assertEqual(code, 200)
+        self.assertIn("odds", json.loads(body)["source"])
+
+    def test_predict_endpoint_validation(self):
+        code, body = self._req("/api/predictor/predict", method="POST",
+                               payload={"dataset": "epl_2018_19",
+                                        "home": "Arsenal", "away": "Arsenal"})
+        self.assertEqual(code, 400)
+        self.assertIn("different", json.loads(body)["error"])
+
+        code2, _ = self._req("/api/predictor/predict", method="POST", payload={})
+        self.assertEqual(code2, 400)
 
 
 if __name__ == "__main__":
