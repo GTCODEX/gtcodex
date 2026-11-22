@@ -32,6 +32,8 @@ football_stats/
 ├── data.py                 # load tidy CSVs, league tables, splits, name normalisation
 ├── stats.py                # descriptive stats, distributions, tests, regression, scoring
 ├── models.py               # Poisson match model, Elo ratings, Monte-Carlo simulation
+├── predictor.py            # ensemble outcome predictor + walk-forward backtesting
+├── predict.py              # command-line predictor: python -m football_stats.predict
 ├── fetch.py                # re-download the original public datasets from GitHub
 ├── datasets/
 │   ├── epl_2018_19.csv     # 380 matches, with xG, shots, possession, cards, odds
@@ -45,12 +47,29 @@ football_stats/
 │   ├── 05_expected_goals.py
 │   ├── 06_poisson_match_prediction.py
 │   ├── 07_elo_ratings.py
-│   └── 08_predicting_a_new_season.py
+│   ├── 08_predicting_a_new_season.py
+│   └── 09_outcome_predictor.py
 ├── CURRICULUM.md           # the full course
 └── README.md
 ```
 
-## The eight lessons
+## Predict a match right now
+
+```bash
+cd /home/user/gtcodex
+
+python -m football_stats.predict "Arsenal" "Chelsea"
+python -m football_stats.predict "Arsenal" "Chelsea" --odds 2.10 3.40 3.60
+python -m football_stats.predict --backtest          # measure real accuracy
+python -m football_stats.predict --season epl_2019_20 --train epl_2018_19
+```
+
+Or use the web dashboard: `python server.py`, then open `/predictor.html`.
+
+The predictor blends a Poisson model, Elo ratings and (when supplied) the bookmaker's
+odds. Blend weights are tuned on held-out data and the probabilities are calibrated.
+
+## The nine lessons
 
 | # | Lesson | Statistical ideas |
 |---|--------|-------------------|
@@ -62,11 +81,12 @@ football_stats/
 | 6 | Match prediction | Poisson model, Dixon-Coles adjustment, log-loss, overfitting |
 | 7 | Elo ratings | rating systems, expected score, K-factor, home advantage |
 | 8 | New seasons & simulation | cross-season testing, Monte-Carlo, title probabilities |
+| 9 | The outcome predictor | ensemble blending, calibration, walk-forward backtesting |
 
 ## API map
 
 ```python
-from football_stats import data as d, stats as st, models as m
+from football_stats import data as d, stats as st, models as m, predictor as p
 
 # --- data ---------------------------------------------------------------
 matches = d.load_dataset("epl_2018_19")     # list[Match]
@@ -85,11 +105,18 @@ st.brier_score(probs, outcomes); st.log_loss(probs, outcomes)
 st.roc_auc(scores, labels)
 
 # --- models -------------------------------------------------------------
-model = m.fit_poisson(train)                 # attack/defence ratings + home advantage
+model = m.fit_poisson(train, decay=0.99, ridge=0.001)
 model.lambdas("Arsenal", "Chelsea")          # -> (expected home goals, expected away goals)
 model.match_probabilities("Arsenal", "Chelsea")
 elo = m.Elo(k=20, home_advantage=100).fit(matches)
 m.simulate_season(model, teams, n_sim=2000, seed=7)
+
+# --- prediction ---------------------------------------------------------
+predictor = p.fit_predictor(train)            # Poisson + Elo (+ odds), tuned & calibrated
+predictor.predict("Arsenal", "Chelsea")      # -> Prediction with 1X2, O/U, BTTS, score
+predictor.predict("Arsenal", "Chelsea", odds=(2.10, 3.40, 3.60))
+report = p.backtest(train)                   # walk-forward accuracy, log-loss, vs market
+p.predict_season(train, season)              # predict a whole season
 ```
 
 ## Design notes

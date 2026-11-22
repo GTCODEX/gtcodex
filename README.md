@@ -164,9 +164,11 @@ leadfinder/
 │   ├── data.py          # CSV loading, league tables, splits, name normalisation
 │   ├── stats.py         # Descriptive stats, distributions, tests, regression, scoring
 │   ├── models.py        # Poisson match model, Elo ratings, Monte-Carlo simulation
+│   ├── predictor.py     # Ensemble outcome predictor + walk-forward backtesting
+│   ├── predict.py       # CLI: python -m football_stats.predict
 │   ├── fetch.py         # Re-download the original public datasets from GitHub
 │   ├── datasets/        # Two Premier League seasons, ready to analyse
-│   ├── examples/        # Eight runnable lessons
+│   ├── examples/        # Nine runnable lessons
 │   └── CURRICULUM.md    # The full learning path
 ├── data/
 │   ├── geocache.json    # Local coordinate cache for zero-latency repeat searches
@@ -188,14 +190,25 @@ No pandas, no scipy, no paid data: every algorithm is implemented in the standar
 library and is small enough to read.
 
 ```bash
-python -m football_stats.examples.01_descriptive_statistics   # describe a season
-python -m football_stats.examples.06_poisson_match_prediction # predict matches vs the bookmaker
+python -m football_stats.predict "Arsenal" "Chelsea"           # forecast a match
+python -m football_stats.predict --odds 2.10 3.40 3.60 "Arsenal" "Chelsea"
+python -m football_stats.predict --backtest                    # measure real accuracy
+python -m football_stats.examples.01_descriptive_statistics   # or start the course
 python -m unittest tests.test_football_stats -v               # 47 tests
 ```
 
-Eight lessons cover descriptive statistics, the Poisson distribution, hypothesis testing,
+There is also a **web dashboard**: run `python server.py` and open `/predictor.html`
+(or click **⚽ Match Predictor** in the app header) to pick teams, blend in odds and
+see the measured accuracy in your browser.
+
+**Predicting a match** blends a Poisson model, Elo ratings and (optionally) the
+bookmaker's odds, tunes the blend on held-out data, and calibrates the probabilities.
+On a walk-forward backtest it scores **56.8%** 1X2 accuracy (95% CI 49.7–63.7%) and a
+log-loss of 0.949 against the market's 0.917.
+
+Nine lessons cover descriptive statistics, the Poisson distribution, hypothesis testing,
 correlation and regression, expected goals, match prediction and evaluation, Elo ratings,
-and Monte-Carlo season simulation. See
+Monte-Carlo season simulation, and the ensemble predictor. See
 [`football_stats/CURRICULUM.md`](football_stats/CURRICULUM.md) for the full syllabus,
 exercises and capstone project ideas.
 

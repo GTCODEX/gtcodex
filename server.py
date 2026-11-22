@@ -15,12 +15,27 @@ from pathlib import Path
 import outreach
 import providers
 
+import football_stats.data as fdata
+import football_stats.predictor as fpredictor
+
 STATIC = (Path(__file__).parent / "static").resolve()
 TYPES = {".html": "text/html", ".css": "text/css", ".js": "text/javascript"}
 JOBS, POOL = {}, ThreadPoolExecutor(12)
 JOBS_LOCK = threading.Lock()
 MAX_JOBS = 50
 MAX_REQUEST_BYTES = 1_048_576
+
+# Fitted predictors take ~1s and are read-only, so cache them per dataset.
+PRED_CACHE = {}
+PRED_LOCK = threading.Lock()
+
+
+def get_predictor(dataset_id):
+    with PRED_LOCK:
+        if dataset_id not in PRED_CACHE:
+            PRED_CACHE[dataset_id] = fpredictor.fit_predictor(
+                fdata.load_dataset(dataset_id))
+        return PRED_CACHE[dataset_id]
 
 SOCIAL = re.compile(
     r"facebook\.com|instagram\.com|linktr\.ee|wa\.me|twitter\.com|//x\.com|tiktok\.com|youtube\.com|linkedin\.com|threads\.net",
@@ -566,6 +581,30 @@ class H(BaseHTTPRequestHandler):
             s = outreach.get_public_settings()
             ledger = outreach.get_sent_ledger()
             return self.reply(200, {"settings": s, "sent_total": len(ledger)})
+        if u.path == "/api/predictor/datasets":
+            out = []
+            for name in fdata.DATASETS:
+                matches = fdata.load_dataset(name)
+                out.append({"id": name, "label": name, "matches": len(matches),
+                            "teams": fdata.team_names(matches)})
+            return self.reply(200, out)
+        if u.path == "/api/predictor/teams":
+            ds = urllib.parse.parse_qs(u.query).get("dataset", [""])[0]
+            if ds not in fdata.DATASETS:
+                return self.reply(400, {"error": f"Unknown dataset: {ds}"})
+            return self.reply(200, {"teams": fdata.team_names(fdata.load_dataset(ds))})
+        if u.path == "/api/predictor/datasets":
+            out = []
+            for name in fdata.DATASETS:
+                matches = fdata.load_dataset(name)
+                out.append({"id": name, "label": name, "matches": len(matches),
+                            "teams": d.team_names(matches)})
+            return self.reply(200, out)
+        if u.path == "/api/predictor/teams":
+            ds = urllib.parse.parse_qs(u.query).get("dataset", [""])[0]
+            if ds not in fdata.DATASETS:
+                return self.reply(400, {"error": f"Unknown dataset: {ds}"})
+            return self.reply(200, {"teams": d.team_names(fdata.load_dataset(ds))})
         if u.path.startswith("/api/job/"):
             jid = u.path.split("/")[-1]
             with JOBS_LOCK:
@@ -665,6 +704,39 @@ class H(BaseHTTPRequestHandler):
                 JOBS[jid] = job
             threading.Thread(target=run, args=(job, p), daemon=True).start()
             return self.reply(200, {"id": jid})
+
+        if u.path == "/api/predictor/predict":
+            ds = (p.get("dataset") or "epl_2018_19").strip()
+            if ds not in fdata.DATASETS:
+                return self.reply(400, {"error": f"Unknown dataset: {ds}"})
+            home = (p.get("home") or "").strip()
+            away = (p.get("away") or "").strip()
+            if not home or not away:
+                return self.reply(400, {"error": "Both 'home' and 'away' are required."})
+            if home == away:
+                return self.reply(400, {"error": "Home and away must be different teams."})
+            odds = p.get("odds")
+            odds_tuple = None
+            if isinstance(odds, list) and len(odds) == 3 and all(
+                    isinstance(x, (int, float)) and x > 1 for x in odds):
+                odds_tuple = tuple(float(x) for x in odds)
+            try:
+                pred = get_predictor(ds).predict(home, away, odds=odds_tuple)
+            except Exception as e:
+                return self.reply(400, {"error": str(e)})
+            return self.reply(200, pred.as_dict())
+
+        if u.path == "/api/predictor/backtest":
+            ds = (p.get("dataset") or "epl_2018_19").strip()
+            if ds not in fdata.DATASETS:
+                return self.reply(400, {"error": f"Unknown dataset: {ds}"})
+            try:
+                report = fpredictor.backtest(fdata.load_dataset(ds), verbose=False)
+            except Exception as e:
+                return self.reply(400, {"error": str(e)})
+            report.pop("predictions", None)
+            report.pop("matches", None)
+            return self.reply(200, report)
 
         return self.reply(404, {"error": "Not found"})
 

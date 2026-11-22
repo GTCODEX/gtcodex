@@ -25,6 +25,14 @@ python -m football_stats.examples.08_predicting_a_new_season
 | `06_poisson_match_prediction.py` | match models & evaluation | `models.fit_poisson`, log-loss vs the bookmaker |
 | `07_elo_ratings.py` | rating systems | `models.Elo` |
 | `08_predicting_a_new_season.py` | cross-season + simulation | `models.simulate_season` |
+| `09_outcome_predictor.py` | the ensemble predictor and its accuracy | `predictor.fit_predictor`, `predictor.backtest` |
+
+For day-to-day prediction use the command line rather than the scripts:
+
+```bash
+python -m football_stats.predict "Arsenal" "Chelsea"
+python -m football_stats.predict --backtest
+```
 
 ## Tips
 

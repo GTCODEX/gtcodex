@@ -21,7 +21,7 @@ about ("Is home advantage real?", "Who will win this match?").
 
 ## How to use this course
 
-Work through the eight lessons in order. Each lesson is a runnable script:
+Work through the nine lessons in order. Each lesson is a runnable script:
 
 ```bash
 cd /home/user/gtcodex
@@ -33,6 +33,14 @@ python -m football_stats.examples.05_expected_goals
 python -m football_stats.examples.06_poisson_match_prediction
 python -m football_stats.examples.07_elo_ratings
 python -m football_stats.examples.08_predicting_a_new_season
+python -m football_stats.examples.09_outcome_predictor
+```
+
+Or skip straight to predicting with the command line:
+
+```bash
+python -m football_stats.predict "Arsenal" "Chelsea"     # forecast one match
+python -m football_stats.predict --backtest              # measure real accuracy
 ```
 
 Each script prints a report, explains what it just did, and ends with **"Your turn"**
@@ -44,7 +52,7 @@ exercises. Do the exercises — that is where the learning happens. A suggested 
 | 2 | 3, 4 | Hypothesis tests; correlation and regression |
 | 3 | 5, 6 | Expected goals; building and judging a prediction model |
 | 4 | 7, 8 | Elo ratings; cross-season prediction and simulation |
-| 5 | Capstone | Your own analysis (see below) |
+| 5 | 9 + Capstone | The ensemble predictor; your own analysis (see below) |
 
 ---
 
@@ -282,6 +290,43 @@ promoted-team priors, the difference between a forecast and a single result.
 - Fit on 2019/20 and back-test on 2018/19.
 - Estimate each team's probability of a top-4 finish.
 - Add a simple promotion/relegation prior and see how the simulation changes.
+
+---
+
+## Module 9 — The outcome predictor (Lesson 9)
+
+**Question:** can we combine everything into a predictor that says what will happen in
+a specific match — and how do we know if it's any good?
+
+**Concepts:** model ensembling, blend-weight tuning, temperature calibration,
+walk-forward validation, Wilson confidence intervals, benchmarking against the market.
+
+**Run:** `python -m football_stats.examples.09_outcome_predictor` (or the CLI)
+
+**What you learn:**
+- The predictor blends three signals — Poisson, Elo and the betting market — with
+  weights tuned on held-out data, then calibrates the probabilities.
+- On a walk-forward backtest over the last 190 matches of 2018/19:
+
+  | metric | value |
+  |--------|-------|
+  | 1X2 accuracy | **56.8%** (95% CI 49.7%–63.7%) |
+  | log-loss | 0.9486 |
+  | Brier score | 0.5550 |
+  | ROC-AUC (home win) | 0.691 |
+  | over/under 2.5 accuracy | 55.8% |
+  | market log-loss (same matches) | **0.9169** |
+
+- **The market is still better, and that is the right result to get.** The gap of 0.032
+  in log-loss is the price of not having injuries, team news and a professional modelling
+  team. A model that "beats the bookmaker" on a single season is usually overfitting.
+- The mid-range probabilities are well calibrated; the extremes (n = 17–30) are not —
+  small samples, exactly as expected.
+
+**Exercises to try:**
+- `python -m football_stats.predict --backtest --decay 0.98` — does recency weighting help?
+- Add a fourth signal (points from the last 5 matches) and see if log-loss improves.
+- Predict the 2019/20 season from 2018/19 ratings and compare with the real table.
 
 ---
 
