@@ -15,6 +15,9 @@ ENV/
 *.key
 data/
 
+# Downloaded originals for the football_stats learning package (bundled CSVs are committed)
+football_stats/datasets/original/
+
 # Operating System
 .DS_Store
 Thumbs.db
