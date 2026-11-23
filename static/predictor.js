@@ -36,11 +36,25 @@ document.querySelectorAll(".tab").forEach((tab) => {
 // ---------------------------------------------------------------- data
 let DATASETS = [];
 
+function fillDatasetSelect(select, items, value) {
+  select.innerHTML = "";
+  for (const item of items) {
+    const opt = document.createElement("option");
+    opt.value = item.id;
+    opt.textContent = `${item.id} — ${item.label} (${item.matches} matches)`;
+    select.appendChild(opt);
+  }
+  if (value && items.some((d) => d.id === value)) select.value = value;
+}
+
 async function loadDatasets() {
   DATASETS = await api("/api/predictor/datasets");
   const names = DATASETS.map((d) => d.id);
-  fillSelect($("dataset"), names, names[0]);
-  fillSelect($("btDataset"), names, names[0]);
+  // Default to the combined recent seasons: more data, and it actually contains
+  // the current campaign.
+  const preferred = names.includes("epl_recent") ? "epl_recent" : names[0];
+  fillDatasetSelect($("dataset"), DATASETS, preferred);
+  fillDatasetSelect($("btDataset"), DATASETS, preferred);
   await loadTeams();
 }
 
@@ -97,7 +111,8 @@ function renderPrediction(pred) {
   } else {
     $("advice").hidden = true;
   }
-  $("meta").textContent = `Signals used: ${pred.source}`;
+  $("meta").textContent = `Signals used: ${pred.source}` +
+    (pred.log_id ? `   ·   logged as ${pred.log_id}` : "");
   $("result").hidden = false;
 }
 
@@ -108,6 +123,7 @@ $("predictBtn").addEventListener("click", async () => {
     dataset: $("dataset").value,
     home: $("home").value,
     away: $("away").value,
+    log: $("saveLog").checked,
   };
   const odds = readOdds();
   if (odds) payload.odds = odds;
@@ -181,9 +197,90 @@ $("backtestBtn").addEventListener("click", async () => {
   }
 });
 
+// ---------------------------------------------------------------- forecast log
+function renderLog(data) {
+  const s = data.score;
+  const cards = [
+    ["Settled", `${s.n} of ${data.records.length}`],
+    ["Awaiting result", s.pending],
+    ["1X2 accuracy", s.accuracy == null ? "—" : pct(s.accuracy)],
+    ["95% confidence",
+      s.accuracy == null ? "—" : `${pct(s.accuracy_ci[0])} – ${pct(s.accuracy_ci[1])}`],
+    ["Log-loss", s.log_loss == null ? "—" : s.log_loss.toFixed(4)],
+    ["Brier score", s.brier == null ? "—" : s.brier.toFixed(4)],
+    ["Over/under 2.5", s.over_under_accuracy == null ? "—" : pct(s.over_under_accuracy)],
+    ["BTTS", s.btts_accuracy == null ? "—" : pct(s.btts_accuracy)],
+    ["Calibration ECE", data.ece == null ? "—" : data.ece.toFixed(3)],
+  ];
+  $("logStats").innerHTML = cards.map(([k, v]) => statCard(k, v)).join("");
+
+  const cal = $("logCal").querySelector("tbody");
+  cal.innerHTML = "";
+  data.calibration.filter((r) => r.n).forEach((r) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      `<td>${r.bin[0].toFixed(1)}–${r.bin[1].toFixed(1)}</td>` +
+      `<td>${r.n}</td><td>${r.mean_pred.toFixed(2)}</td><td>${r.observed.toFixed(2)}</td>`;
+    cal.appendChild(tr);
+  });
+  $("logScore").hidden = s.n === 0;
+
+  const tbody = $("logTable").querySelector("tbody");
+  tbody.innerHTML = "";
+  data.records.forEach((r) => {
+    const tr = document.createElement("tr");
+    const probs = [r.home_win, r.draw, r.away_win];
+    const pickLabel = ["H", "D", "A"][probs.indexOf(Math.max(...probs))];
+    const conf = Math.max(...probs);
+    const score = r.home_goals == null ? "—" : `${r.home_goals}-${r.away_goals}`;
+    const outcome = r.settled || r.result ? r.result : "—";
+    const hit = r.result && pickLabel === r.result ? " ✓" : "";
+    tr.innerHTML =
+      `<td>${r.fixture_date || r.created_at.slice(0, 10)}</td>` +
+      `<td>${r.home} v ${r.away}</td>` +
+      `<td>${pickLabel}${hit}</td>` +
+      `<td>${(conf * 100).toFixed(0)}%</td>` +
+      `<td>${outcome}</td><td>${score}</td><td>${r.status}</td>`;
+    tbody.appendChild(tr);
+  });
+  $("logTableCard").hidden = data.records.length === 0;
+}
+
+async function loadLog() {
+  try {
+    renderLog(await api("/api/predictor/log"));
+  } catch (e) {
+    $("logError").textContent = e.message;
+    $("logError").hidden = false;
+  }
+}
+
+$("settleBtn").addEventListener("click", async () => {
+  const btn = $("settleBtn");
+  btn.disabled = true;
+  $("logMsg").textContent = "Checking the datasets for results…";
+  try {
+    const res = await api("/api/predictor/log/settle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    $("logMsg").textContent = res.settled
+      ? `Settled ${res.settled} forecast(s).`
+      : "No new results found yet — the upstream data may not have caught up.";
+    await loadLog();
+  } catch (e) {
+    $("logError").textContent = e.message;
+    $("logError").hidden = false;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 // ---------------------------------------------------------------- init
 loadDatasets().catch((e) => {
   const err = $("predictError");
   err.textContent = "Could not load datasets: " + e.message;
   err.hidden = false;
 });
+loadLog();

@@ -177,13 +177,21 @@ class TestPredictorEndpoints(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertIn("Match Outcome Predictor", body)
 
-    def test_datasets_endpoint_lists_both_seasons(self):
+    def test_datasets_endpoint_lists_all_seasons(self):
         code, body = self._req("/api/predictor/datasets")
         self.assertEqual(code, 200)
         payload = json.loads(body)
         ids = {x["id"] for x in payload}
-        self.assertEqual(ids, {"epl_2018_19", "epl_2019_20"})
-        self.assertTrue(all(len(x["teams"]) == 20 for x in payload))
+        self.assertEqual(ids, {"epl_2018_19", "epl_2019_20", "epl_2025_26",
+                               "epl_2026_27", "epl_recent"})
+        by_id = {x["id"]: x for x in payload}
+        # single seasons are 20-team leagues; the composite spans two, so it has 23
+        for name in ("epl_2018_19", "epl_2019_20", "epl_2025_26", "epl_2026_27"):
+            self.assertEqual(len(by_id[name]["teams"]), 20, name)
+            self.assertFalse(by_id[name]["composite"], name)
+        self.assertEqual(len(by_id["epl_recent"]["teams"]), 23)
+        self.assertTrue(by_id["epl_recent"]["composite"])
+        self.assertIn("recent", by_id["epl_recent"]["label"])
 
     def test_teams_endpoint(self):
         code, body = self._req("/api/predictor/teams?dataset=epl_2018_19")
@@ -200,8 +208,9 @@ class TestPredictorEndpoints(unittest.TestCase):
                                         "home": "Arsenal", "away": "Chelsea"})
         self.assertEqual(code, 200)
         payload = json.loads(body)
+        # each probability is rounded to 4 dp for display, so allow that much slack
         self.assertAlmostEqual(payload["home_win"] + payload["draw"]
-                               + payload["away_win"], 1.0, places=4)
+                               + payload["away_win"], 1.0, places=3)
         self.assertIn(payload["most_likely_outcome"], ("H", "D", "A"))
 
     def test_predict_endpoint_blends_odds(self):

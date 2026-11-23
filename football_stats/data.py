@@ -13,8 +13,14 @@ Source data
 * ``epl_2019_20.csv`` — 380 Premier League matches, 2019/20, with shots, cards,
   corners, fouls and Bet365 odds. Derived from
   https://github.com/jokecamp/FootballData (football-data.co.uk mirror).
+* ``epl_2025_26.csv`` — the complete 2025/26 season (380 matches, half-time scores),
+  derived from https://github.com/AnishKhetani/premier-league-data.
+* ``epl_2026_27.csv`` — the current season, refreshed daily from
+  https://github.com/oladeeayo/open-matchday, with shots, shots on target,
+  corners, fouls, cards and goal minutes.
 
-Both originals are re-downloaded by :mod:`football_stats.fetch`.
+The originals are re-downloaded by :mod:`football_stats.fetch` and the two recent
+seasons are rebuilt by :mod:`football_stats.prepare`.
 """
 from __future__ import annotations
 
@@ -30,9 +36,26 @@ DATASETS_DIR = PACKAGE_DIR / "datasets"
 DATASETS = {
     "epl_2018_19": DATASETS_DIR / "epl_2018_19.csv",
     "epl_2019_20": DATASETS_DIR / "epl_2019_20.csv",
+    "epl_2025_26": DATASETS_DIR / "epl_2025_26.csv",
+    "epl_2026_27": DATASETS_DIR / "epl_2026_27.csv",
 }
 
-# The two source datasets use different club names. Real-world data is full of
+# Virtual datasets: several seasons concatenated, for fitting on recent history
+# without concatenating by hand. Teams promoted or relegated between the two
+# seasons simply have data for one of them.
+COMPOSITE_DATASETS = {
+    "epl_recent": ("epl_2025_26", "epl_2026_27"),
+}
+
+DATASET_LABELS = {
+    "epl_2018_19": "2018/19",
+    "epl_2019_20": "2019/20",
+    "epl_2025_26": "2025/26",
+    "epl_2026_27": "2026/27 (so far)",
+    "epl_recent": "2025/26 + 2026/27 (recent)",
+}
+
+# The source datasets use different club names. Real-world data is full of
 # these mismatches — normalising them is a core data-cleaning step.
 TEAM_ALIASES = {
     "Bournemouth": "AFC Bournemouth",
@@ -40,11 +63,19 @@ TEAM_ALIASES = {
     "Leicester": "Leicester City",
     "Man City": "Manchester City",
     "Man United": "Manchester United",
+    "Man Utd": "Manchester United",
     "Newcastle": "Newcastle United",
     "Norwich": "Norwich City",
     "Tottenham": "Tottenham Hotspur",
+    "Spurs": "Tottenham Hotspur",
     "West Ham": "West Ham United",
     "Wolves": "Wolverhampton Wanderers",
+    # short names used by the recent-season datasets
+    "Hull": "Hull City",
+    "Ipswich": "Ipswich Town",
+    "Coventry": "Coventry City",
+    "Leeds": "Leeds United",
+    "Nott'm Forest": "Nottingham Forest",
 }
 
 
@@ -84,8 +115,14 @@ class Match:
         return self.home_goals > 0 and self.away_goals > 0
 
     def stat(self, name: str, default: float = 0.0) -> float:
-        """Read an optional stat such as ``home_xg`` or ``home_shots``."""
-        return float(self.stats.get(name, default))
+        """Read an optional stat such as ``home_xg`` or ``home_shots``.
+
+        An empty cell means "not recorded", not zero — return ``default``.
+        """
+        value = self.stats.get(name, default)
+        if value in ("", None):
+            return default
+        return float(value)
 
 
 def _to_int(v: str) -> int:
@@ -118,10 +155,34 @@ def load_csv(path: str | Path) -> list[Match]:
     return matches
 
 
+def dataset_ids() -> list[str]:
+    """Every loadable dataset id, including the composite ones."""
+    return list(DATASETS) + [k for k in COMPOSITE_DATASETS if k not in DATASETS]
+
+
+def dataset_label(name: str) -> str:
+    """Short human-readable label for a dataset id."""
+    return DATASET_LABELS.get(name, name)
+
+
+def is_composite(name: str) -> bool:
+    return name in COMPOSITE_DATASETS
+
+
 def load_dataset(name: str) -> list[Match]:
-    """Load one of the bundled datasets by name (``epl_2018_19`` / ``epl_2019_20``)."""
+    """Load one of the bundled datasets by name.
+
+    Composite ids (see :data:`COMPOSITE_DATASETS`) concatenate their parts in
+    date order.
+    """
+    if name in COMPOSITE_DATASETS:
+        matches: list[Match] = []
+        for part in COMPOSITE_DATASETS[name]:
+            matches.extend(load_dataset(part))
+        matches.sort(key=lambda m: (m.date, m.home))
+        return matches
     if name not in DATASETS:
-        raise KeyError(f"unknown dataset {name!r}; choose from {sorted(DATASETS)}")
+        raise KeyError(f"unknown dataset {name!r}; choose from {dataset_ids()}")
     return load_csv(DATASETS[name])
 
 

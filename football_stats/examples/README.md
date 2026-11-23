@@ -1,7 +1,8 @@
 # Tutorial scripts
 
-Eight runnable lessons. Each prints a report, explains the ideas, and ends with
-exercises. See [../CURRICULUM.md](../CURRICULUM.md) for the full course.
+Ten runnable lessons. Each prints a report, explains the ideas, and ends with
+exercises. Lessons 1–8 are the statistics course in
+[../CURRICULUM.md](../CURRICULUM.md); 9 and 10 are the prediction tool.
 
 ```bash
 cd /home/user/gtcodex
@@ -13,6 +14,8 @@ python -m football_stats.examples.05_expected_goals
 python -m football_stats.examples.06_poisson_match_prediction
 python -m football_stats.examples.07_elo_ratings
 python -m football_stats.examples.08_predicting_a_new_season
+python -m football_stats.examples.09_outcome_predictor
+python -m football_stats.examples.10_forecast_log
 ```
 
 | Script | Topic | Key functions |
@@ -26,6 +29,7 @@ python -m football_stats.examples.08_predicting_a_new_season
 | `07_elo_ratings.py` | rating systems | `models.Elo` |
 | `08_predicting_a_new_season.py` | cross-season + simulation | `models.simulate_season` |
 | `09_outcome_predictor.py` | the ensemble predictor and its accuracy | `predictor.fit_predictor`, `predictor.backtest` |
+| `10_forecast_log.py` | committing to forecasts and scoring them | `prediction_log.record`, `prediction_log.settle_from_datasets` |
 
 For day-to-day prediction use the command line rather than the scripts:
 

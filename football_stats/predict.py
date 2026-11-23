@@ -58,6 +58,9 @@ def _parser() -> argparse.ArgumentParser:
                     help="rating shrinkage (default 0.001)")
     ap.add_argument("--no-calibration", action="store_true",
                     help="skip temperature calibration")
+    ap.add_argument("--date", help="fixture date (YYYY-MM-DD), stored with --log")
+    ap.add_argument("--log", action="store_true",
+                    help="append this forecast to data/prediction_log.json")
     ap.add_argument("--json", action="store_true", help="output JSON")
     ap.add_argument("--quiet", action="store_true", help="less progress output")
     return ap
@@ -116,6 +119,12 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(pred.as_dict(), indent=2))
     else:
         print(pred.summary())
+    if args.log:
+        from football_stats import prediction_log as plog
+        rec = plog.record(pred, fixture_date=args.date or "", dataset=args.dataset,
+                          odds=tuple(args.odds) if args.odds else None)
+        if not args.quiet:
+            print(f"  logged as {rec.id} (pending result)")
     return 0
 
 

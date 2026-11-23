@@ -109,6 +109,11 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 .cal td:last-child, .cal th:last-child { text-align: right; }
 
 .honest { color: var(--muted); font-size: 13px; line-height: 1.6; margin: 18px 0 0; }
+
+.check { flex-direction: row; align-items: center; gap: 8px; margin-top: 14px; font-weight: 500; }
+.check input { width: auto; }
+.hint { color: var(--muted); font-size: 12px; line-height: 1.5; margin: 8px 0 0; }
+#logTable td:nth-child(3) { font-weight: 700; }
 .foot { color: var(--muted); font-size: 12px; line-height: 1.6; margin-top: 26px; }
 
 @media (max-width: 640px) {
