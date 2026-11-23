@@ -1,46 +1,110 @@
-date,round,home,away,home_goals,away_goals,result
-2026-08-21,Matchday 1,Arsenal,Coventry City,3,0,H
-2026-08-22,Matchday 1,Brentford,Tottenham Hotspur,3,0,H
-2026-08-22,Matchday 1,Everton,Crystal Palace,2,0,H
-2026-08-22,Matchday 1,Hull City,Manchester United,2,0,H
-2026-08-22,Matchday 1,Ipswich Town,Sunderland,2,1,H
-2026-08-22,Matchday 1,Nottingham Forest,Leeds United,0,1,A
-2026-08-23,Matchday 1,Brighton & Hove Albion,Aston Villa,4,0,H
-2026-08-23,Matchday 1,Manchester City,AFC Bournemouth,2,1,H
-2026-08-23,Matchday 1,Newcastle United,Liverpool,2,2,D
-2026-08-24,Matchday 1,Fulham,Chelsea,2,3,A
-2026-08-28,Matchday 2,Crystal Palace,Manchester City,1,4,A
-2026-08-29,Matchday 2,AFC Bournemouth,Everton,1,1,D
-2026-08-29,Matchday 2,Coventry City,Hull City,0,1,A
-2026-08-29,Matchday 2,Liverpool,Nottingham Forest,2,2,D
-2026-08-29,Matchday 2,Tottenham Hotspur,Newcastle United,0,2,A
-2026-08-30,Matchday 2,Chelsea,Brighton & Hove Albion,4,3,H
-2026-08-30,Matchday 2,Leeds United,Brentford,1,1,D
-2026-08-30,Matchday 2,Manchester United,Ipswich Town,5,2,H
-2026-08-30,Matchday 2,Sunderland,Fulham,1,0,H
-2026-08-31,Matchday 2,Aston Villa,Arsenal,0,1,A
-2026-09-04,Matchday 3,Ipswich Town,Liverpool,0,2,A
-2026-09-05,Matchday 3,Brentford,Sunderland,1,1,D
-2026-09-05,Matchday 3,Brighton & Hove Albion,Leeds United,1,1,D
-2026-09-05,Matchday 3,Fulham,Crystal Palace,2,3,A
-2026-09-05,Matchday 3,Manchester City,Coventry City,1,0,H
-2026-09-05,Matchday 3,Newcastle United,AFC Bournemouth,2,2,D
-2026-09-06,Matchday 3,Arsenal,Chelsea,2,1,H
-2026-09-06,Matchday 3,Everton,Manchester United,2,2,D
-2026-09-12,Matchday 4,AFC Bournemouth,Brentford,2,2,D
-2026-09-12,Matchday 4,Aston Villa,Nottingham Forest,1,2,A
-2026-09-12,Matchday 4,Chelsea,Hull City,2,2,D
-2026-09-12,Matchday 4,Crystal Palace,Ipswich Town,2,3,A
-2026-09-12,Matchday 4,Sunderland,Arsenal,0,2,A
-2026-09-13,Matchday 4,Coventry City,Brighton & Hove Albion,0,5,A
-2026-09-13,Matchday 4,Manchester United,Manchester City,0,1,A
-2026-09-14,Matchday 4,Leeds United,Newcastle United,4,1,H
-2026-09-18,Matchday 5,Brentford,Chelsea,3,0,H
-2026-09-19,Matchday 5,Brighton & Hove Albion,Arsenal,3,0,H
-2026-09-19,Matchday 5,Everton,Ipswich Town,1,0,H
-2026-09-19,Matchday 5,Newcastle United,Hull City,2,1,H
-2026-09-19,Matchday 5,Nottingham Forest,Coventry City,0,1,A
-2026-09-19,Matchday 5,Tottenham Hotspur,Aston Villa,2,3,A
-2026-09-20,Matchday 5,AFC Bournemouth,Liverpool,0,1,A
-2026-09-20,Matchday 5,Fulham,Manchester United,1,1,D
-2026-09-20,Matchday 5,Manchester City,Sunderland,5,3,H
+date,round,home,away,home_goals,away_goals,result,ht_home_goals,ht_away_goals,ht_result,home_shots,away_shots,home_shots_on_target,away_shots_on_target,home_fouls,away_fouls,home_corners,away_corners,home_yellow,away_yellow,home_red,away_red,goal_minutes
+2026-08-21,Matchday 1,Arsenal,Coventry City,3,0,H,2,0,H,20,4,6,1,10,13,8,2,1,1,0,0,"15,23,49"
+2026-08-22,Matchday 1,Brentford,Tottenham Hotspur,3,0,H,2,0,H,26,9,8,4,17,14,7,3,1,1,0,0,"12,33,49"
+2026-08-22,Matchday 1,Everton,Crystal Palace,2,0,H,1,0,H,16,11,5,4,5,15,4,0,0,1,0,0,42
+2026-08-22,Matchday 1,Hull City,Manchester United,2,0,H,2,0,H,8,21,4,5,10,9,1,6,2,1,0,0,17
+2026-08-22,Matchday 1,Ipswich Town,Sunderland,2,1,H,1,1,D,10,11,3,4,12,14,3,5,0,3,0,0,"24,90"
+2026-08-22,Matchday 1,Nottingham Forest,Leeds United,0,1,A,0,0,D,12,11,2,3,15,14,3,2,2,1,0,0,
+2026-08-23,Matchday 1,Brighton & Hove Albion,Aston Villa,4,0,H,4,0,H,21,6,6,0,12,11,5,2,2,3,0,1,"8,18,31"
+2026-08-23,Matchday 1,Manchester City,AFC Bournemouth,2,1,H,0,1,A,13,5,6,4,11,11,8,3,1,2,0,0,"26,91"
+2026-08-23,Matchday 1,Newcastle United,Liverpool,2,2,D,1,0,H,13,27,4,7,16,15,2,6,5,3,0,0,"5,55,57,99"
+2026-08-24,Matchday 1,Fulham,Chelsea,2,3,A,1,2,A,14,18,6,6,12,7,6,4,2,3,0,0,"1,23,41,49"
+2026-08-28,Matchday 2,Crystal Palace,Manchester City,1,4,A,0,1,A,9,18,1,9,8,11,2,6,1,2,0,0,"54,56,59,84"
+2026-08-29,Matchday 2,AFC Bournemouth,Everton,1,1,D,1,0,H,17,13,5,7,11,14,10,7,3,2,0,0,"41,91"
+2026-08-29,Matchday 2,Coventry City,Hull City,0,1,A,0,0,D,11,6,3,2,11,8,6,2,1,4,0,0,82
+2026-08-29,Matchday 2,Liverpool,Nottingham Forest,2,2,D,0,1,A,13,12,4,3,13,10,3,5,4,2,0,0,"24,60,70,82"
+2026-08-29,Matchday 2,Tottenham Hotspur,Newcastle United,0,2,A,0,0,D,17,11,6,2,15,9,9,7,1,2,0,0,62
+2026-08-30,Matchday 2,Chelsea,Brighton & Hove Albion,4,3,H,3,1,H,17,15,6,6,6,12,4,7,1,3,0,0,"4,14,32,35,63,74"
+2026-08-30,Matchday 2,Leeds United,Brentford,1,1,D,0,1,A,12,22,2,5,5,13,5,6,0,4,0,0,79
+2026-08-30,Matchday 2,Manchester United,Ipswich Town,5,2,H,1,1,D,33,9,11,5,7,12,8,4,1,3,0,0,"29,40,56,61,68,82,91"
+2026-08-30,Matchday 2,Sunderland,Fulham,1,0,H,0,0,D,12,11,4,0,10,15,3,4,0,2,0,0,75
+2026-08-31,Matchday 2,Aston Villa,Arsenal,0,1,A,0,0,D,7,7,0,2,17,6,2,4,3,1,0,0,59
+2026-09-04,Matchday 3,Ipswich Town,Liverpool,0,2,A,0,2,A,14,10,5,7,6,13,4,3,1,3,0,0,"6,9"
+2026-09-05,Matchday 3,Brentford,Sunderland,1,1,D,0,0,D,12,14,2,5,19,9,4,3,3,2,0,0,82
+2026-09-05,Matchday 3,Brighton & Hove Albion,Leeds United,1,1,D,0,1,A,20,10,5,5,13,16,7,6,3,3,0,0,15
+2026-09-05,Matchday 3,Fulham,Crystal Palace,2,3,A,2,1,H,25,10,6,5,6,7,7,1,0,0,0,0,"11,35,42,54"
+2026-09-05,Matchday 3,Hull City,Aston Villa,0,0,D,0,0,D,11,13,4,1,10,5,3,4,2,0,0,0,
+2026-09-05,Matchday 3,Manchester City,Coventry City,1,0,H,1,0,H,15,12,4,3,7,17,4,5,1,2,0,0,
+2026-09-05,Matchday 3,Newcastle United,AFC Bournemouth,2,2,D,1,2,A,8,17,2,5,19,17,4,3,2,3,0,0,"9,35,37,88"
+2026-09-05,Matchday 3,Nottingham Forest,Tottenham Hotspur,0,0,D,0,0,D,12,11,2,0,22,14,2,10,2,2,0,0,
+2026-09-06,Matchday 3,Arsenal,Chelsea,2,1,H,1,1,D,16,13,9,5,13,16,5,3,2,4,0,0,"2,25,50"
+2026-09-06,Matchday 3,Everton,Manchester United,2,2,D,0,0,D,18,14,6,3,7,11,4,3,3,3,0,0,"46,83,96"
+2026-09-12,Matchday 4,AFC Bournemouth,Brentford,2,2,D,1,1,D,20,8,10,2,10,13,2,1,5,1,0,0,"38,52,56"
+2026-09-12,Matchday 4,Aston Villa,Nottingham Forest,1,2,A,0,0,D,7,22,5,7,11,16,6,1,2,5,0,0,"46,88"
+2026-09-12,Matchday 4,Chelsea,Hull City,2,2,D,1,2,A,12,14,7,5,7,12,10,4,1,5,0,0,"7,28,34,66"
+2026-09-12,Matchday 4,Crystal Palace,Ipswich Town,2,3,A,1,2,A,11,12,4,6,6,16,6,3,1,3,1,0,"14,75,90"
+2026-09-12,Matchday 4,Liverpool,Fulham,0,0,D,0,0,D,14,10,3,4,11,8,5,8,0,1,0,0,
+2026-09-12,Matchday 4,Sunderland,Arsenal,0,2,A,0,0,D,12,11,3,5,18,11,4,2,6,2,1,0,"58,97"
+2026-09-12,Matchday 4,Tottenham Hotspur,Everton,0,0,D,0,0,D,14,12,2,3,14,8,5,6,0,2,0,0,
+2026-09-13,Matchday 4,Coventry City,Brighton & Hove Albion,0,5,A,0,1,A,14,22,6,7,9,15,5,3,0,0,1,0,"51,70,83,94"
+2026-09-13,Matchday 4,Manchester United,Manchester City,0,1,A,0,0,D,16,6,3,2,17,10,6,7,1,2,0,1,60
+2026-09-14,Matchday 4,Leeds United,Newcastle United,4,1,H,3,0,H,15,7,6,5,8,13,5,5,1,2,0,0,"32,46,59,90"
+2026-09-18,Matchday 5,Brentford,Chelsea,3,0,H,0,0,D,13,12,6,2,10,7,4,12,2,0,0,0,"83,94"
+2026-09-19,Matchday 5,Brighton & Hove Albion,Arsenal,3,0,H,2,0,H,17,11,5,2,13,11,5,6,4,1,0,0,"31,45"
+2026-09-19,Matchday 5,Everton,Ipswich Town,1,0,H,1,0,H,21,13,2,4,6,12,4,4,2,1,0,1,11
+2026-09-19,Matchday 5,Newcastle United,Hull City,2,1,H,2,0,H,12,22,5,4,4,10,4,7,1,4,0,0,"3,7,67"
+2026-09-19,Matchday 5,Nottingham Forest,Coventry City,0,1,A,0,0,D,24,10,3,3,12,10,6,2,2,0,0,0,55
+2026-09-19,Matchday 5,Tottenham Hotspur,Aston Villa,2,3,A,0,1,A,20,15,7,6,9,13,11,1,1,2,0,0,"49,67,79,86"
+2026-09-20,Matchday 5,AFC Bournemouth,Liverpool,0,1,A,0,0,D,9,12,2,3,11,13,3,3,1,2,0,0,57
+2026-09-20,Matchday 5,Fulham,Manchester United,1,1,D,0,0,D,12,29,6,6,9,5,3,13,3,0,0,0,"63,89"
+2026-09-20,Matchday 5,Leeds United,Crystal Palace,0,0,D,0,0,D,13,12,2,4,10,12,4,3,2,3,0,0,
+2026-09-20,Matchday 5,Manchester City,Sunderland,5,3,H,3,2,H,16,17,6,9,14,14,6,5,0,1,0,0,"12,29,33,43,57,59,81"
+2026-10-10,Matchday 6,Arsenal,Leeds United,2,1,H,0,0,D,13,11,6,5,12,20,2,4,1,4,0,0,"55,62,70"
+2026-10-10,Matchday 6,Aston Villa,Brentford,2,2,D,1,1,D,20,14,7,4,7,24,2,2,2,5,0,0,"10,12,77,79"
+2026-10-10,Matchday 6,Chelsea,AFC Bournemouth,5,1,H,2,0,H,10,9,6,4,7,15,1,7,0,4,0,0,"2,3,46,51,67"
+2026-10-10,Matchday 6,Ipswich Town,Fulham,2,1,H,0,0,D,11,13,5,5,8,10,2,5,2,4,0,0,"55,88"
+2026-10-10,Matchday 6,Manchester United,Tottenham Hotspur,1,1,D,0,0,D,12,12,4,3,13,16,4,4,4,3,0,1,73
+2026-10-10,Matchday 6,Sunderland,Brighton & Hove Albion,0,2,A,0,0,D,12,13,3,4,8,12,7,5,0,1,0,1,"53,93"
+2026-10-11,Matchday 6,Crystal Palace,Nottingham Forest,3,1,H,2,1,H,13,24,7,6,11,10,5,8,2,2,0,0,"3,41,59"
+2026-10-11,Matchday 6,Hull City,Everton,2,2,D,0,0,D,9,15,5,7,15,4,7,6,2,0,0,0,"48,68,74"
+2026-10-11,Matchday 6,Liverpool,Manchester City,0,3,A,0,0,D,13,15,6,4,19,14,5,6,4,2,1,0,"65,68,78"
+2026-10-12,Matchday 6,Coventry City,Newcastle United,4,1,H,1,0,H,9,19,6,6,3,10,2,6,1,1,0,0,"6,48,70,81,86"
+2026-10-17,Matchday 7,Brentford,Liverpool,1,2,A,1,0,H,10,21,2,5,7,13,3,9,4,3,2,0,"62,70"
+2026-10-17,Matchday 7,Everton,Chelsea,0,2,A,0,0,D,6,18,5,7,8,15,5,7,3,4,0,0,"46,90"
+2026-10-17,Matchday 7,Fulham,Hull City,1,0,H,1,0,H,18,5,6,0,13,11,10,2,2,2,1,0,33
+2026-10-17,Matchday 7,Manchester City,Ipswich Town,3,2,H,2,1,H,19,8,6,3,8,16,2,3,1,2,0,0,"19,21,69,90"
+2026-10-17,Matchday 7,Newcastle United,Aston Villa,0,1,A,0,1,A,16,15,1,3,14,11,4,5,6,2,0,0,
+2026-10-18,Matchday 7,AFC Bournemouth,Sunderland,2,0,H,1,0,H,29,3,6,0,16,7,5,3,3,2,0,1,48
+2026-10-18,Matchday 7,Brighton & Hove Albion,Crystal Palace,5,0,H,3,0,H,17,5,9,1,13,11,8,5,2,1,0,0,"4,7,10,49"
+2026-10-18,Matchday 7,Leeds United,Manchester United,1,1,D,0,1,A,12,13,5,3,16,5,2,3,2,2,0,0,35
+2026-10-18,Matchday 7,Nottingham Forest,Arsenal,0,1,A,0,0,D,14,9,2,1,14,8,8,6,1,1,0,0,80
+2026-10-19,Matchday 7,Tottenham Hotspur,Coventry City,3,1,H,1,0,H,16,12,5,1,15,14,4,4,1,3,0,0,"14,49,58,96"
+2026-10-23,Matchday 8,Ipswich Town,Nottingham Forest,1,1,D,1,1,D,7,17,3,5,9,11,0,5,1,1,0,0,"13,41"
+2026-10-24,Matchday 8,Arsenal,Everton,2,0,H,1,0,H,20,8,4,3,11,13,12,3,1,3,0,0,7
+2026-10-24,Matchday 8,Aston Villa,Manchester City,2,1,H,1,0,H,8,15,2,7,21,17,4,7,4,4,0,0,"6,60"
+2026-10-24,Matchday 8,Chelsea,Tottenham Hotspur,0,2,A,0,0,D,7,15,4,4,14,14,4,6,4,3,1,0,"77,87"
+2026-10-24,Matchday 8,Coventry City,Fulham,0,1,A,0,0,D,13,12,2,3,9,11,4,6,0,2,0,0,80
+2026-10-25,Matchday 8,Crystal Palace,Newcastle United,0,2,A,0,0,D,17,10,4,2,12,10,7,4,3,3,0,0,"47,58"
+2026-10-25,Matchday 8,Hull City,Brentford,1,1,D,1,0,H,12,14,2,6,10,9,5,6,0,1,0,0,24
+2026-10-25,Matchday 8,Liverpool,Brighton & Hove Albion,2,0,H,2,0,H,13,17,4,1,13,9,4,2,0,2,0,0,17
+2026-10-25,Matchday 8,Manchester United,AFC Bournemouth,0,3,A,0,2,A,17,10,5,4,13,17,5,4,4,1,0,0,"38,43,71"
+2026-10-25,Matchday 8,Sunderland,Leeds United,0,0,D,0,0,D,15,11,4,4,10,14,4,5,1,2,0,0,
+2026-10-31,Matchday 9,AFC Bournemouth,Leeds United,2,0,H,1,0,H,11,10,5,1,12,15,4,4,2,2,0,0,"31,94"
+2026-10-31,Matchday 9,Aston Villa,Fulham,1,1,D,1,0,H,16,14,3,5,7,12,7,7,1,3,0,0,"39,64"
+2026-10-31,Matchday 9,Brentford,Nottingham Forest,2,0,H,1,0,H,7,15,1,1,6,17,3,4,1,3,0,0,"30,76"
+2026-10-31,Matchday 9,Chelsea,Manchester United,2,0,H,0,0,D,19,12,10,5,8,20,8,7,1,6,0,1,"50,64"
+2026-10-31,Matchday 9,Coventry City,Sunderland,3,1,H,2,0,H,12,17,4,2,16,9,4,4,2,2,0,1,"17,37,52,67"
+2026-10-31,Matchday 9,Hull City,Ipswich Town,2,2,D,0,1,A,9,15,3,3,13,12,6,3,3,3,0,0,"22,58,74"
+2026-10-31,Matchday 9,Manchester City,Brighton & Hove Albion,0,1,A,0,1,A,21,7,6,3,9,13,8,2,0,3,0,0,11
+2026-10-31,Matchday 9,Tottenham Hotspur,Crystal Palace,2,0,H,1,0,H,34,2,9,1,8,10,19,0,1,1,0,1,
+2026-11-01,Matchday 9,Liverpool,Arsenal,0,1,A,0,1,A,17,10,0,3,18,10,7,4,4,4,0,0,16
+2026-11-02,Matchday 9,Newcastle United,Everton,0,1,A,0,0,D,17,16,2,5,13,9,4,5,4,2,1,0,49
+2026-11-06,Matchday 10,Everton,Coventry City,3,1,H,0,0,D,15,15,7,4,10,6,2,2,1,1,0,0,"52,61,81"
+2026-11-07,Matchday 10,Arsenal,Hull City,1,0,H,0,0,D,21,7,10,2,6,15,7,4,2,3,0,0,72
+2026-11-07,Matchday 10,Fulham,Newcastle United,1,1,D,0,0,D,11,9,5,5,9,13,3,3,0,5,0,0,"80,83"
+2026-11-07,Matchday 10,Leeds United,Tottenham Hotspur,1,0,H,0,0,D,16,7,4,4,11,16,6,4,1,2,0,0,79
+2026-11-07,Matchday 10,Nottingham Forest,Manchester City,3,1,H,2,0,H,11,12,5,4,13,7,3,7,0,2,0,0,"6,18,52,73"
+2026-11-08,Matchday 10,Brighton & Hove Albion,Brentford,2,0,H,2,0,H,20,5,6,0,11,7,7,3,4,2,0,1,"15,42"
+2026-11-08,Matchday 10,Crystal Palace,Liverpool,1,3,A,0,1,A,19,20,7,8,10,18,4,7,2,4,0,0,"54,89,95"
+2026-11-08,Matchday 10,Ipswich Town,AFC Bournemouth,1,2,A,0,1,A,10,15,2,4,6,20,2,7,2,3,0,0,"5,46,73"
+2026-11-08,Matchday 10,Manchester United,Aston Villa,4,4,D,2,2,D,26,12,9,6,18,9,8,1,1,1,0,0,"1,4,16,44,48,53,92"
+2026-11-08,Matchday 10,Sunderland,Chelsea,1,0,H,1,0,H,9,10,2,4,17,8,2,2,5,4,0,0,36
+2026-11-21,Matchday 11,AFC Bournemouth,Nottingham Forest,2,0,H,,,,,,,,,,6,4,,,,,"19,48"
+2026-11-21,Matchday 11,Aston Villa,Sunderland,0,0,D,,,,,,,,,,7,2,,,,,
+2026-11-21,Matchday 11,Chelsea,Leeds United,1,4,A,,,,,,,,,,3,2,,,,,"25,28,53,58,91"
+2026-11-21,Matchday 11,Coventry City,Crystal Palace,3,2,H,,,,,,,,,,4,6,,,,,"5,13,30,85"
+2026-11-21,Matchday 11,Manchester City,Fulham,1,1,D,,,,,,,,,,8,6,,,,,16
+2026-11-21,Matchday 11,Newcastle United,Arsenal,2,2,D,,,,,,,,,,6,3,,,,,"33,49,62,78"
+2026-11-21,Matchday 11,Tottenham Hotspur,Ipswich Town,2,0,H,,,,,,,,,,8,6,,,,,"15,51"
+2026-11-22,Matchday 11,Hull City,Brighton & Hove Albion,2,0,H,,,,,,,,,,3,4,,,,,"92,95"
+2026-11-22,,Liverpool,Manchester United,4,0,H,,,,,,,,,,,,,,,,

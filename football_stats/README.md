@@ -34,10 +34,15 @@ football_stats/
 ├── models.py               # Poisson match model, Elo ratings, Monte-Carlo simulation
 ├── predictor.py            # ensemble outcome predictor + walk-forward backtesting
 ├── predict.py              # command-line predictor: python -m football_stats.predict
+├── prediction_log.py       # record forecasts, settle them, score the log
 ├── fetch.py                # re-download the original public datasets from GitHub
+├── prepare.py              # rebuild the recent-season datasets from those sources
 ├── datasets/
 │   ├── epl_2018_19.csv     # 380 matches, with xG, shots, possession, cards, odds
 │   ├── epl_2019_20.csv     # 380 matches, with shots, cards, fouls, odds
+│   ├── epl_2025_26.csv     # 380 matches, complete season with half-time scores
+│   ├── epl_2026_27.csv     # current season, refreshed daily (shots, corners, cards)
+│   ├── supplement_2026_27.csv  # played matches the source has not published yet
 │   └── README.md           # provenance and column dictionary
 ├── examples/
 │   ├── 01_descriptive_statistics.py
@@ -48,7 +53,8 @@ football_stats/
 │   ├── 06_poisson_match_prediction.py
 │   ├── 07_elo_ratings.py
 │   ├── 08_predicting_a_new_season.py
-│   └── 09_outcome_predictor.py
+│   ├── 09_outcome_predictor.py
+│   └── 10_forecast_log.py
 ├── CURRICULUM.md           # the full course
 └── README.md
 ```
@@ -58,16 +64,46 @@ football_stats/
 ```bash
 cd /home/user/gtcodex
 
-python -m football_stats.predict "Arsenal" "Chelsea"
+python -m football_stats.predict "Arsenal" "Chelsea" --dataset epl_recent
 python -m football_stats.predict "Arsenal" "Chelsea" --odds 2.10 3.40 3.60
-python -m football_stats.predict --backtest          # measure real accuracy
+python -m football_stats.predict --backtest --dataset epl_recent
 python -m football_stats.predict --season epl_2019_20 --train epl_2018_19
 ```
 
-Or use the web dashboard: `python server.py`, then open `/predictor.html`.
+`--dataset epl_recent` fits on the 2025/26 season plus everything played so far in
+2026/27, which is the right training set for a current fixture.
 
 The predictor blends a Poisson model, Elo ratings and (when supplied) the bookmaker's
 odds. Blend weights are tuned on held-out data and the probabilities are calibrated.
+
+### Keeping score
+
+A backtest is not the same as a record of what you actually forecast. The prediction
+log writes every forecast down before the match and scores it afterwards:
+
+```bash
+python -m football_stats.predict "Liverpool" "Manchester United" --dataset epl_recent \
+    --date 2026-11-22 --log
+python -m football_stats.prediction_log --settle   # fill in results once played
+python -m football_stats.prediction_log            # the honest scorecard
+```
+
+The log lives at `data/prediction_log.json` and is surfaced on the dashboard's
+**Forecast log** tab.
+
+### Refreshing the data
+
+The current season changes daily:
+
+```bash
+python -m football_stats.prepare            # rebuild epl_2025_26 + epl_2026_27
+python -m football_stats.fetch              # only re-download the raw sources
+```
+
+If a match has been played but the source has not caught up, add it to
+`datasets/supplement_2026_27.csv` — the builder merges it in.
+
+Or use the web dashboard: `python server.py`, then open `/predictor.html`.
 
 ## The nine lessons
 
@@ -82,6 +118,7 @@ odds. Blend weights are tuned on held-out data and the probabilities are calibra
 | 7 | Elo ratings | rating systems, expected score, K-factor, home advantage |
 | 8 | New seasons & simulation | cross-season testing, Monte-Carlo, title probabilities |
 | 9 | The outcome predictor | ensemble blending, calibration, walk-forward backtesting |
+| 10 | The forecast log | pre-registering forecasts, settling results, calibration error |
 
 ## API map
 

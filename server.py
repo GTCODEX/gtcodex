@@ -17,6 +17,7 @@ import providers
 
 import football_stats.data as fdata
 import football_stats.predictor as fpredictor
+import football_stats.prediction_log as fplog
 
 STATIC = (Path(__file__).parent / "static").resolve()
 TYPES = {".html": "text/html", ".css": "text/css", ".js": "text/javascript"}
@@ -29,12 +30,16 @@ MAX_REQUEST_BYTES = 1_048_576
 PRED_CACHE = {}
 PRED_LOCK = threading.Lock()
 
+# Predicting "now": fit on every match available and use the default blend, rather
+# than holding out the newest results (which are exactly the ones we care about).
+LIVE_CONFIG = fpredictor.PredictorConfig(holdout_frac=0.0)
+
 
 def get_predictor(dataset_id):
     with PRED_LOCK:
         if dataset_id not in PRED_CACHE:
             PRED_CACHE[dataset_id] = fpredictor.fit_predictor(
-                fdata.load_dataset(dataset_id))
+                fdata.load_dataset(dataset_id), config=LIVE_CONFIG)
         return PRED_CACHE[dataset_id]
 
 SOCIAL = re.compile(
@@ -583,28 +588,26 @@ class H(BaseHTTPRequestHandler):
             return self.reply(200, {"settings": s, "sent_total": len(ledger)})
         if u.path == "/api/predictor/datasets":
             out = []
-            for name in fdata.DATASETS:
+            for name in fdata.dataset_ids():
                 matches = fdata.load_dataset(name)
-                out.append({"id": name, "label": name, "matches": len(matches),
+                out.append({"id": name, "label": fdata.dataset_label(name),
+                            "matches": len(matches),
+                            "composite": fdata.is_composite(name),
                             "teams": fdata.team_names(matches)})
             return self.reply(200, out)
         if u.path == "/api/predictor/teams":
             ds = urllib.parse.parse_qs(u.query).get("dataset", [""])[0]
-            if ds not in fdata.DATASETS:
+            if ds not in fdata.dataset_ids():
                 return self.reply(400, {"error": f"Unknown dataset: {ds}"})
             return self.reply(200, {"teams": fdata.team_names(fdata.load_dataset(ds))})
-        if u.path == "/api/predictor/datasets":
-            out = []
-            for name in fdata.DATASETS:
-                matches = fdata.load_dataset(name)
-                out.append({"id": name, "label": name, "matches": len(matches),
-                            "teams": d.team_names(matches)})
-            return self.reply(200, out)
-        if u.path == "/api/predictor/teams":
-            ds = urllib.parse.parse_qs(u.query).get("dataset", [""])[0]
-            if ds not in fdata.DATASETS:
-                return self.reply(400, {"error": f"Unknown dataset: {ds}"})
-            return self.reply(200, {"teams": d.team_names(fdata.load_dataset(ds))})
+        if u.path == "/api/predictor/log":
+            records = fplog.load_log()
+            return self.reply(200, {
+                "records": [r.to_dict() for r in records],
+                "score": fplog.score(records),
+                "calibration": fplog.calibration(records),
+                "ece": fplog.expected_calibration_error(records),
+            })
         if u.path.startswith("/api/job/"):
             jid = u.path.split("/")[-1]
             with JOBS_LOCK:
@@ -706,8 +709,8 @@ class H(BaseHTTPRequestHandler):
             return self.reply(200, {"id": jid})
 
         if u.path == "/api/predictor/predict":
-            ds = (p.get("dataset") or "epl_2018_19").strip()
-            if ds not in fdata.DATASETS:
+            ds = (p.get("dataset") or "epl_recent").strip()
+            if ds not in fdata.dataset_ids():
                 return self.reply(400, {"error": f"Unknown dataset: {ds}"})
             home = (p.get("home") or "").strip()
             away = (p.get("away") or "").strip()
@@ -724,11 +727,21 @@ class H(BaseHTTPRequestHandler):
                 pred = get_predictor(ds).predict(home, away, odds=odds_tuple)
             except Exception as e:
                 return self.reply(400, {"error": str(e)})
-            return self.reply(200, pred.as_dict())
+            body = pred.as_dict()
+            if p.get("log"):
+                rec = fplog.record(pred, fixture_date=str(p.get("date") or ""),
+                                   dataset=ds, odds=odds_tuple)
+                body["log_id"] = rec.id
+            return self.reply(200, body)
+
+        if u.path == "/api/predictor/log/settle":
+            n = fplog.settle_from_datasets(verbose=False)
+            records = fplog.load_log()
+            return self.reply(200, {"settled": n, "score": fplog.score(records)})
 
         if u.path == "/api/predictor/backtest":
-            ds = (p.get("dataset") or "epl_2018_19").strip()
-            if ds not in fdata.DATASETS:
+            ds = (p.get("dataset") or "epl_recent").strip()
+            if ds not in fdata.dataset_ids():
                 return self.reply(400, {"error": f"Unknown dataset: {ds}"})
             try:
                 report = fpredictor.backtest(fdata.load_dataset(ds), verbose=False)

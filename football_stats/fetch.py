@@ -39,6 +39,19 @@ SOURCES = {
         "2026-27/en.1.json",
         "master",
     ),
+    # Complete 2025/26 season (380 matches) with half-time scores. A mirror of
+    # football-data.co.uk; the openfootball file above is missing 27 matches.
+    "premierleague_data_results": (
+        "AnishKhetani/premier-league-data",
+        "data/processed/results.csv",
+        "main",
+    ),
+    # 2026/27 results, refreshed daily, with shots/corners/cards and goal minutes.
+    "openmatchday_epl_2026_27": (
+        "oladeeayo/open-matchday",
+        "data/ENG_1_premier-league/results_2627.csv",
+        "master",
+    ),
 }
 
 UA = "football-stats-learning/1.0 (educational; stdlib urllib)"

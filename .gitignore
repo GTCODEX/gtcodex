@@ -13,7 +13,9 @@ ENV/
 .env
 .env.local
 *.key
-data/
+data/*
+# ...except the predictor's forecast log, which is a record we keep in git
+!data/prediction_log.json
 
 # Downloaded originals for the football_stats learning package (bundled CSVs are committed)
 football_stats/datasets/original/

@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import math
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Sequence
 
 from . import data as d
@@ -252,7 +252,12 @@ class Predictor:
 
         # normalise the weights so they sum to 1
         total_w = sum(weights.values())
-        weights = {k: v / total_w for k, v in weights.items()}
+        if total_w <= 0:
+            # Degenerate fit (e.g. every tuned weight landed on zero) — fall back
+            # to an equal blend rather than dividing by zero.
+            weights = {k: 1.0 / len(weights) for k in weights}
+        else:
+            weights = {k: v / total_w for k, v in weights.items()}
 
         probs = {o: sum(weights[k] * sigs[k][o] for k in sources) for o in OUTCOMES}
         # temperature calibration on the 1X2 logits
@@ -320,7 +325,9 @@ def fit_predictor(train: Sequence[d.Match], config: PredictorConfig | None = Non
                   verbose: bool = False) -> Predictor:
     """Fit a predictor: Poisson model + Elo, with blend weights and calibration tuned
     on an internal holdout (the most recent ``holdout_frac`` of matches)."""
-    cfg = config or PredictorConfig()
+    # Work on a copy: tuning rewrites the blend weights, and the caller's config
+    # should not change just because we fitted something.
+    cfg = replace(config) if config is not None else PredictorConfig()
     matches = sorted(train, key=lambda m: (m.date, m.home))
     if len(matches) < 60:
         raise ValueError("need at least 60 matches to fit a predictor")
@@ -338,14 +345,23 @@ def fit_predictor(train: Sequence[d.Match], config: PredictorConfig | None = Non
     # --- tune the blend weights on the holdout --------------------------------
     if holdout:
         signals = _holdout_signals(holdout, poisson, elo)
+        # The market weight is only meaningful if the holdout actually carries odds.
+        # Without them the search would happily hand all the weight to a signal it
+        # never observes, leaving nothing for the models at prediction time.
+        has_odds = any(mp is not None for _, _, _, mp in signals)
         best_w, best_ll = None, math.inf
         n_steps = int(round(1.0 / cfg.grid_step))
         steps = [i * cfg.grid_step for i in range(n_steps + 1)]
         for wp in steps:
             for we in steps:
-                if wp + we > 1.0 + 1e-9:
-                    continue
-                wo = max(0.0, 1.0 - wp - we)
+                if has_odds:
+                    if wp + we > 1.0 + 1e-9:
+                        continue
+                    wo = 1.0 - wp - we
+                else:
+                    if abs(wp + we - 1.0) > 1e-9:
+                        continue
+                    wo = 0.0
                 ll = _signals_log_loss(signals, wp, we, wo)
                 if ll < best_ll:
                     best_ll, best_w = ll, (wp, we, wo)
@@ -418,7 +434,9 @@ def _signals_log_loss(signals: Sequence[tuple], wp: float, we: float, wo: float,
     """Log-loss for a candidate blend over pre-computed signals."""
     losses = []
     for result, pp, ep, mp in signals:
-        if mp is not None and wo > 0:
+        if wp + we <= 0 and wo <= 0:
+            probs = _blend_probs(pp, ep, 0.5, 0.5)
+        elif mp is not None and wo > 0:
             total = wp + we + wo
             probs = {o: (wp * pp[o] + we * ep[o] + wo * mp[o]) / total
                      for o in OUTCOMES}
