@@ -48,10 +48,88 @@ TEAM_ALIASES = {
 }
 
 
+# Common names people type that are not in the source data. Only used when
+# resolving user input (``match_team_name``), never when loading datasets.
+USER_ALIASES = {
+    "man utd": "Manchester United",
+    "man u": "Manchester United",
+    "manchester utd": "Manchester United",
+    "united": "Manchester United",
+    "city": "Manchester City",
+    "spurs": "Tottenham Hotspur",
+    "palace": "Crystal Palace",
+    "villa": "Aston Villa",
+    "sheff utd": "Sheffield United",
+    "sheffield utd": "Sheffield United",
+    "brighton and hove albion": "Brighton & Hove Albion",
+    "bournemouth": "AFC Bournemouth",
+    "wolverhampton": "Wolverhampton Wanderers",
+    "the hammers": "West Ham United",
+    "the toffees": "Everton",
+    "the gunners": "Arsenal",
+    "the blues": "Chelsea",
+    "the reds": "Liverpool",
+}
+
+
 def canonical_team(name: str) -> str:
     """Map a source-specific club name to the canonical name used everywhere."""
     name = name.strip()
     return TEAM_ALIASES.get(name, name)
+
+
+def _norm(name: str) -> str:
+    return " ".join(name.replace("&", "and").replace(".", " ").lower().split())
+
+
+def match_team_name(name: str, known: Sequence[str]) -> str | None:
+    """Resolve user input to one of ``known`` team names, or ``None``.
+
+    Tries, in order: exact match, the dataset aliases, common nicknames
+    (``USER_ALIASES``), a case-insensitive match, and finally a unique prefix
+    ("Huddersfield" -> "Huddersfield Town"). Deliberately no fuzzy guessing: a
+    typo must not silently become a different club.
+    """
+    known = list(known)
+    raw = (name or "").strip()
+    if not raw:
+        return None
+    if raw in known:
+        return raw
+    by_norm = {_norm(k): k for k in known}
+    candidates = [canonical_team(raw)]
+    for alias, canon in TEAM_ALIASES.items():
+        if _norm(alias) == _norm(raw):
+            candidates.append(canon)
+    if _norm(raw) in USER_ALIASES:
+        candidates.append(USER_ALIASES[_norm(raw)])
+    candidates.append(raw)
+    for cand in candidates:
+        if cand in known:
+            return cand
+        if _norm(cand) in by_norm:
+            return by_norm[_norm(cand)]
+    prefix = [k for k in known if _norm(k).startswith(_norm(raw) + " ")]
+    if len(prefix) == 1:
+        return prefix[0]
+    return None
+
+
+def suggest_team_names(name: str, known: Sequence[str], n: int = 3) -> list[str]:
+    """Closest known team names, for "did you mean ...?" error messages."""
+    import difflib
+
+    known = list(known)
+    q = _norm(name or "")
+    if not q:
+        return []
+    by_norm = {_norm(k): k for k in known}
+    out = [k for k in known if q in _norm(k)]  # "Manchester" -> both Manchester clubs
+    if not out:
+        out = [by_norm[h] for h in difflib.get_close_matches(q, list(by_norm), n=n,
+                                                              cutoff=0.5)]
+    out = out[:n]
+    return out
 
 
 @dataclass

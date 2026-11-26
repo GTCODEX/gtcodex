@@ -67,7 +67,15 @@ python -m football_stats.predict --season epl_2019_20 --train epl_2018_19
 Or use the web dashboard: `python server.py`, then open `/predictor.html`.
 
 The predictor blends a Poisson model, Elo ratings and (when supplied) the bookmaker's
-odds. Blend weights are tuned on held-out data and the probabilities are calibrated.
+odds. Blend weights are tuned on held-out data, the probabilities are calibrated, and
+the models are then refitted on all the training matches.
+
+Team names are resolved strictly: `"Man City"`, `"Spurs"` and `"huddersfield"` all work,
+but a typo like `"Arsenl"` is rejected with a "did you mean 'Arsenal'?" suggestion, both on
+the CLI and in the `/api/predictor/predict` endpoint. To predict a team that is not in the
+training data (e.g. a promoted side) pass `--allow-unseen`. It is then rated like the
+weakest 40% of the known teams (`PredictorConfig.promoted_prior`; set `0` for
+league-average), and the prediction says so.
 
 ## The nine lessons
 

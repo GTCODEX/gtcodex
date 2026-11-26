@@ -593,18 +593,6 @@ class H(BaseHTTPRequestHandler):
             if ds not in fdata.DATASETS:
                 return self.reply(400, {"error": f"Unknown dataset: {ds}"})
             return self.reply(200, {"teams": fdata.team_names(fdata.load_dataset(ds))})
-        if u.path == "/api/predictor/datasets":
-            out = []
-            for name in fdata.DATASETS:
-                matches = fdata.load_dataset(name)
-                out.append({"id": name, "label": name, "matches": len(matches),
-                            "teams": d.team_names(matches)})
-            return self.reply(200, out)
-        if u.path == "/api/predictor/teams":
-            ds = urllib.parse.parse_qs(u.query).get("dataset", [""])[0]
-            if ds not in fdata.DATASETS:
-                return self.reply(400, {"error": f"Unknown dataset: {ds}"})
-            return self.reply(200, {"teams": d.team_names(fdata.load_dataset(ds))})
         if u.path.startswith("/api/job/"):
             jid = u.path.split("/")[-1]
             with JOBS_LOCK:
@@ -709,10 +697,16 @@ class H(BaseHTTPRequestHandler):
             ds = (p.get("dataset") or "epl_2018_19").strip()
             if ds not in fdata.DATASETS:
                 return self.reply(400, {"error": f"Unknown dataset: {ds}"})
-            home = (p.get("home") or "").strip()
-            away = (p.get("away") or "").strip()
+            home = str(p.get("home") or "").strip()
+            away = str(p.get("away") or "").strip()
             if not home or not away:
                 return self.reply(400, {"error": "Both 'home' and 'away' are required."})
+            try:
+                predictor = get_predictor(ds)
+                home = predictor.resolve_team(home)
+                away = predictor.resolve_team(away)
+            except fpredictor.UnknownTeamError as e:
+                return self.reply(400, {"error": str(e), "suggestions": e.suggestions})
             if home == away:
                 return self.reply(400, {"error": "Home and away must be different teams."})
             odds = p.get("odds")
@@ -721,7 +715,7 @@ class H(BaseHTTPRequestHandler):
                     isinstance(x, (int, float)) and x > 1 for x in odds):
                 odds_tuple = tuple(float(x) for x in odds)
             try:
-                pred = get_predictor(ds).predict(home, away, odds=odds_tuple)
+                pred = predictor.predict(home, away, odds=odds_tuple)
             except Exception as e:
                 return self.reply(400, {"error": str(e)})
             return self.reply(200, pred.as_dict())

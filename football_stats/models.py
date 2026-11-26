@@ -39,17 +39,22 @@ class PoissonModel:
     rho: float = 0.0
     n_matches: int = 0
     unseen_rating: float = 0.0
+    unseen_attack: float | None = None
+    unseen_defence: float | None = None
 
     def lambdas(self, home: str, away: str) -> tuple[float, float]:
         """Expected goals (xG) for a fixture.
 
-        A team the model has never seen (e.g. a newly promoted side) is treated as a
-        league-average team via ``unseen_rating`` (0.0 on the log scale).
+        A team the model has never seen (e.g. a newly promoted side) gets
+        ``unseen_attack`` / ``unseen_defence`` when set, otherwise ``unseen_rating``
+        (0.0 on the log scale = a league-average team).
         """
-        ah = self.attack.get(home, self.unseen_rating)
-        aa = self.attack.get(away, self.unseen_rating)
-        dh = self.defence.get(home, self.unseen_rating)
-        da = self.defence.get(away, self.unseen_rating)
+        ua = self.unseen_rating if self.unseen_attack is None else self.unseen_attack
+        ud = self.unseen_rating if self.unseen_defence is None else self.unseen_defence
+        ah = self.attack.get(home, ua)
+        aa = self.attack.get(away, ua)
+        dh = self.defence.get(home, ud)
+        da = self.defence.get(away, ud)
         lh = math.exp(self.mu + self.home_advantage + ah - da)
         la = math.exp(self.mu + aa - dh)
         return lh, la

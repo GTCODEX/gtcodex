@@ -83,6 +83,105 @@ class TestPredictor(unittest.TestCase):
         self.assertAlmostEqual(a.home_win, b.home_win, places=12)
 
 
+class TestPredictorFitting(unittest.TestCase):
+    """Regression tests for problems found when checking the predictions."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.matches = d.load_dataset("epl_2018_19")
+
+    def test_config_is_not_mutated(self):
+        cfg = p.PredictorConfig()
+        before = (cfg.poisson_weight, cfg.elo_weight, cfg.odds_weight, cfg.poisson_share)
+        p.fit_predictor(self.matches, config=cfg)
+        self.assertEqual(before, (cfg.poisson_weight, cfg.elo_weight,
+                                  cfg.odds_weight, cfg.poisson_share))
+
+    def test_refit_uses_every_training_match(self):
+        pred = p.fit_predictor(self.matches)
+        self.assertEqual(pred.n_train, len(self.matches))
+        self.assertEqual(pred.poisson.n_matches, len(self.matches))
+        self.assertEqual(len(pred.elo.elo.history), len(self.matches))
+        old = p.fit_predictor(self.matches, config=p.PredictorConfig(refit=False))
+        self.assertLess(old.n_train, len(self.matches))
+
+    def test_market_only_weights_do_not_crash_without_odds(self):
+        # The tuner can give the market all the weight; predicting without odds
+        # used to divide by zero.
+        pred = p.fit_predictor(self.matches)
+        pred.config.odds_weight = 1.0
+        pred.config.poisson_weight = pred.config.elo_weight = 0.0
+        out = pred.predict("Arsenal", "Chelsea")
+        self.assertAlmostEqual(out.home_win + out.draw + out.away_win, 1.0, places=6)
+        self.assertNotIn("odds", out.source)
+
+    def test_backtest_without_odds(self):
+        report = p.backtest(self.matches, min_train=300, step=40, use_odds=False,
+                            verbose=False)
+        self.assertEqual(report["n"], 80)
+        self.assertTrue(all("odds" not in x.source for x in report["predictions"]))
+
+    def test_zero_weight_signal_not_reported(self):
+        pred = p.fit_predictor(self.matches)
+        pred.config.poisson_share = 1.0
+        out = pred.predict("Arsenal", "Chelsea")
+        self.assertEqual(out.source, "poisson")
+
+
+class TestTeamResolution(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.predictor = p.fit_predictor(d.load_dataset("epl_2018_19"))
+
+    def test_common_names_resolve(self):
+        cases = {"Man City": "Manchester City", "man utd": "Manchester United",
+                 "Spurs": "Tottenham Hotspur", "huddersfield": "Huddersfield Town",
+                 "Wolves": "Wolverhampton Wanderers", " Chelsea ": "Chelsea",
+                 "brighton and hove albion": "Brighton & Hove Albion"}
+        for given, expected in cases.items():
+            self.assertEqual(self.predictor.resolve_team(given), expected, given)
+
+    def test_typo_is_rejected_with_suggestion(self):
+        with self.assertRaises(p.UnknownTeamError) as ctx:
+            self.predictor.resolve_team("Arsenl")
+        self.assertIn("Arsenal", ctx.exception.suggestions)
+
+    def test_ambiguous_prefix_is_rejected(self):
+        with self.assertRaises(p.UnknownTeamError) as ctx:
+            self.predictor.resolve_team("Manchester")
+        self.assertIn("Manchester City", ctx.exception.suggestions)
+        self.assertIn("Manchester United", ctx.exception.suggestions)
+
+    def test_alias_gives_same_prediction_as_full_name(self):
+        a = self.predictor.predict("Man City", "Huddersfield")
+        b = self.predictor.predict("Manchester City", "Huddersfield Town")
+        self.assertAlmostEqual(a.home_win, b.home_win, places=12)
+        self.assertGreater(a.home_win, 0.8)  # was ~45% when the names went unrecognised
+
+    def test_unseen_team_is_flagged(self):
+        out = self.predictor.predict("Norwich City", "Chelsea")
+        self.assertIn("Norwich City", out.advice)
+        self.assertIn("not in the training data", out.advice)
+
+    def test_unseen_team_gets_promoted_prior(self):
+        # A promoted side is rated like the weakest teams, not like an average one.
+        avg = p.fit_predictor(d.load_dataset("epl_2018_19"),
+                              config=p.PredictorConfig(promoted_prior=0.0))
+        weak = self.predictor.predict("Liverpool", "Norwich City").home_win
+        flat = avg.predict("Liverpool", "Norwich City").home_win
+        self.assertGreater(weak, flat)
+        self.assertIn("league-average", avg.predict("Liverpool", "Norwich City").advice)
+        prior = self.predictor.diagnostics["unseen_team_prior"]
+        self.assertLess(prior["attack"], 0.0)
+        self.assertLess(prior["defence"], 0.0)
+        self.assertLess(prior["elo"], 1500.0)
+
+    def test_predicting_unseen_team_does_not_mutate_model(self):
+        before = dict(self.predictor.elo.elo.ratings)
+        self.predictor.predict("Some New FC", "Chelsea")
+        self.assertEqual(before, self.predictor.elo.elo.ratings)
+
+
 class TestEvaluation(unittest.TestCase):
     def test_wilson_ci_contains_estimate(self):
         lo, hi = p.wilson_ci(60, 100)
@@ -220,6 +319,24 @@ class TestPredictorEndpoints(unittest.TestCase):
 
         code2, _ = self._req("/api/predictor/predict", method="POST", payload={})
         self.assertEqual(code2, 400)
+
+    def test_predict_endpoint_rejects_unknown_team(self):
+        code, body = self._req("/api/predictor/predict", method="POST",
+                               payload={"dataset": "epl_2018_19",
+                                        "home": "Arsenl", "away": "Chelsea"})
+        self.assertEqual(code, 400)
+        payload = json.loads(body)
+        self.assertIn("Unknown team", payload["error"])
+        self.assertIn("Arsenal", payload["suggestions"])
+
+    def test_predict_endpoint_resolves_aliases(self):
+        code, body = self._req("/api/predictor/predict", method="POST",
+                               payload={"dataset": "epl_2018_19",
+                                        "home": "Man City", "away": "Spurs"})
+        self.assertEqual(code, 200)
+        payload = json.loads(body)
+        self.assertEqual(payload["home"], "Manchester City")
+        self.assertEqual(payload["away"], "Tottenham Hotspur")
 
 
 if __name__ == "__main__":

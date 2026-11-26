@@ -58,6 +58,9 @@ def _parser() -> argparse.ArgumentParser:
                     help="rating shrinkage (default 0.001)")
     ap.add_argument("--no-calibration", action="store_true",
                     help="skip temperature calibration")
+    ap.add_argument("--allow-unseen", action="store_true",
+                    help="predict even if a team is not in the training data "
+                         "(it is rated as league-average)")
     ap.add_argument("--json", action="store_true", help="output JSON")
     ap.add_argument("--quiet", action="store_true", help="less progress output")
     return ap
@@ -108,9 +111,24 @@ def main(argv: list[str] | None = None) -> int:
     if not args.home or not args.away:
         _parser().error("give a home and away team, or use --backtest / --season")
 
+    if args.odds and any(o <= 1.0 for o in args.odds):
+        _parser().error("decimal odds must all be greater than 1.0")
     train = d.load_dataset(args.dataset)
     predictor = p.fit_predictor(train, config=cfg, verbose=not args.quiet)
-    pred = predictor.predict(args.home, args.away,
+    home, away = args.home, args.away
+    if not args.allow_unseen:
+        try:
+            home = predictor.resolve_team(args.home)
+            away = predictor.resolve_team(args.away)
+        except p.UnknownTeamError as e:
+            print(f"error: {e}\n  teams in {args.dataset}: "
+                  f"{', '.join(predictor.teams)}\n"
+                  f"  (use --allow-unseen to rate an unknown team as league-average)",
+                  file=sys.stderr)
+            return 2
+        if home == away:
+            _parser().error("home and away must be different teams")
+    pred = predictor.predict(home, away,
                              odds=tuple(args.odds) if args.odds else None)
     if args.json:
         print(json.dumps(pred.as_dict(), indent=2))

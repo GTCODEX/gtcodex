@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import math
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Sequence
 
 from . import data as d
@@ -134,9 +134,16 @@ class EloSignal:
     logistic_weights: list[float]
     draw_share: float
     source: str = "elo"
+    unseen_rating: float | None = None  # rating for teams never seen (None = initial)
+
+    def rating(self, team: str) -> float:
+        """A team's rating, without adding unseen teams to the table (read-only)."""
+        if team in self.elo.ratings:
+            return self.elo.ratings[team]
+        return self.elo.initial if self.unseen_rating is None else self.unseen_rating
 
     def probs(self, home: str, away: str) -> dict[str, float]:
-        diff = (self.elo.rating(home) + self.elo.home_advantage) - self.elo.rating(away)
+        diff = (self.rating(home) + self.elo.home_advantage) - self.rating(away)
         # the mapping was fitted on diff / 400 (see fit_elo_signal)
         z = self.logistic_weights[0] + self.logistic_weights[1] * (diff / 400.0)
         p_home = 1.0 / (1.0 + math.exp(-max(-30.0, min(30.0, z))))
@@ -191,7 +198,15 @@ def over_under_probs(over_odds: float, under_odds: float) -> dict[str, float]:
 
 @dataclass
 class PredictorConfig:
-    """How the predictor is built."""
+    """How the predictor is built.
+
+    The three ``*_weight`` fields describe the blend used when market odds are
+    supplied (they sum to 1). ``poisson_share`` is the Poisson share of the
+    *model-only* blend (Poisson vs Elo), used when there are no odds.
+    ``fit_predictor`` tunes all of them on a holdout and stores the result on the
+    fitted predictor's own copy of the config — the config you pass in is not
+    modified.
+    """
 
     decay: float = 0.99          # recency weighting for the Poisson fit
     ridge: float = 0.001         # shrinkage of ratings toward the league average
@@ -199,12 +214,59 @@ class PredictorConfig:
     poisson_weight: float = 0.55
     elo_weight: float = 0.20
     odds_weight: float = 0.25    # only used when odds are supplied
+    poisson_share: float = 0.75  # Poisson vs Elo when there are no odds
+    # Teams missing from the training data (usually newly promoted sides) are rated
+    # as the average of the weakest ``promoted_prior`` fraction of known teams.
+    # 0.0 = rate them as league-average. 0.4 is the bottom 8 of 20, about where
+    # promoted clubs typically finish (16th-17th).
+    promoted_prior: float = 0.4
     calibrate: bool = True       # temperature calibration on a holdout
+    refit: bool = True           # refit the models on ALL matches after tuning
     k: float = 20.0              # Elo K-factor
     home_advantage: float = 100.0
     holdout_frac: float = 0.25   # used to tune blend weights / calibration
     grid_step: float = 0.1       # blend-weight search resolution
     temp_step: float = 0.05      # calibration temperature search resolution
+
+
+class UnknownTeamError(ValueError):
+    """Raised by :meth:`Predictor.resolve_team` for a team it has never seen."""
+
+    def __init__(self, name: str, suggestions: Sequence[str] = ()):
+        self.name = name
+        self.suggestions = list(suggestions)
+        msg = f"Unknown team: {name!r}"
+        if self.suggestions:
+            msg += " — did you mean " + " / ".join(repr(s) for s in self.suggestions) + "?"
+        super().__init__(msg)
+
+
+def _softmax_temperature(probs: dict[str, float], temperature: float) -> dict[str, float]:
+    """Sharpen (T < 1) or soften (T > 1) a 1X2 distribution."""
+    s = sum(probs.values())
+    probs = {o: probs[o] / s for o in OUTCOMES}
+    if temperature == 1.0:
+        return probs
+    logs = [math.log(max(probs[o], 1e-12)) / temperature for o in OUTCOMES]
+    mx = max(logs)
+    exps = [math.exp(z - mx) for z in logs]
+    total = sum(exps)
+    return {o: e / total for o, e in zip(OUTCOMES, exps)}
+
+
+def _model_probs(pp: dict, ep: dict, poisson_share: float,
+                 temperature: float = 1.0) -> dict[str, float]:
+    """The calibrated model-only (Poisson + Elo) 1X2 forecast."""
+    raw = {o: poisson_share * pp[o] + (1.0 - poisson_share) * ep[o] for o in OUTCOMES}
+    return _softmax_temperature(raw, temperature)
+
+
+def _match_odds(match: d.Match) -> tuple[float, float, float] | None:
+    """The match's (home, draw, away) decimal odds, or None if any are missing."""
+    keys = ("home_odds", "draw_odds", "away_odds")
+    if all(match.stats.get(k) for k in keys):
+        return tuple(match.stat(k) for k in keys)  # type: ignore[return-value]
+    return None
 
 
 @dataclass
@@ -218,11 +280,34 @@ class Predictor:
     source: str = "poisson+elo"
     n_train: int = 0
     diagnostics: dict = field(default_factory=dict)
+    teams: list[str] = field(default_factory=list)
+
+    # -- team names ---------------------------------------------------------
+
+    def resolve_team(self, name: str) -> str:
+        """Map user input ('man city', 'Spurs', 'huddersfield') to a known team.
+
+        Raises :class:`UnknownTeamError` (with suggestions) instead of silently
+        treating a typo as an average team.
+        """
+        known = self.teams or self.poisson.teams
+        found = d.match_team_name(name, known)
+        if found is None:
+            raise UnknownTeamError(name, d.suggest_team_names(name, known))
+        return found
+
+    def _lookup(self, name: str) -> tuple[str, bool]:
+        """Best-effort resolution: (name to use, whether the team is known)."""
+        known = self.teams or self.poisson.teams
+        found = d.match_team_name(name, known)
+        return (found, True) if found else (d.canonical_team(name), False)
 
     # -- prediction ---------------------------------------------------------
 
     def signals(self, home: str, away: str, odds: dict | None = None) -> dict[str, dict]:
         """The raw signal dictionaries from each model."""
+        home, _ = self._lookup(home)
+        away, _ = self._lookup(away)
         out = {"poisson": _poisson_signal(self.poisson, home, away),
                "elo": self.elo.probs(home, away)}
         if odds:
@@ -235,58 +320,59 @@ class Predictor:
         """Forecast the outcome of one fixture.
 
         ``odds`` is a ``(home, draw, away)`` decimal-odds triple; when given, the
-        market signal is blended in.
+        market signal is blended in. A team the model has never seen (e.g. a newly
+        promoted side) is rated as league-average and flagged in ``advice``; use
+        :meth:`resolve_team` first if you would rather reject unknown names.
         """
         cfg = self.config
+        home, home_known = self._lookup(home)
+        away, away_known = self._lookup(away)
+
         sigs = {"poisson": _poisson_signal(self.poisson, home, away),
                 "elo": self.elo.probs(home, away)}
-        weights = {"poisson": cfg.poisson_weight, "elo": cfg.elo_weight, "odds": 0.0}
-        sources = ["poisson", "elo"]
+        share = min(1.0, max(0.0, cfg.poisson_share))
+        probs = _model_probs(sigs["poisson"], sigs["elo"], share, self.temperature)
+
+        used = {"poisson": share > 0.0, "elo": share < 1.0}
+        wo = 0.0
         if odds:
             market = odds_to_probs(*odds)
             if over_under_odds:
                 market.update(over_under_probs(*over_under_odds))
             sigs["odds"] = market
-            weights["odds"] = cfg.odds_weight
-            sources.append("odds")
-
-        # normalise the weights so they sum to 1
-        total_w = sum(weights.values())
-        weights = {k: v / total_w for k, v in weights.items()}
-
-        probs = {o: sum(weights[k] * sigs[k][o] for k in sources) for o in OUTCOMES}
-        # temperature calibration on the 1X2 logits
-        if self.temperature != 1.0:
-            logs = [math.log(max(probs[o], 1e-12)) / self.temperature for o in OUTCOMES]
-            mx = max(logs)
-            exps = [math.exp(z - mx) for z in logs]
-            s = sum(exps)
-            probs = {o: e / s for o, e in zip(OUTCOMES, exps)}
-        # renormalise for safety
+            wo = min(1.0, max(0.0, cfg.odds_weight))
+            used["odds"] = wo > 0.0
+            probs = {o: (1.0 - wo) * probs[o] + wo * market[o] for o in OUTCOMES}
         s = sum(probs.values())
         probs = {o: p / s for o, p in probs.items()}
+        sources = [k for k, on in used.items() if on]
 
         p = sigs["poisson"]
         over_25 = p["over_2_5"]
         if "odds" in sigs and "over_2_5" in sigs["odds"]:
-            over_25 = weights["odds"] * sigs["odds"]["over_2_5"] + \
-                (1 - weights["odds"]) * p["over_2_5"]
+            over_25 = wo * sigs["odds"]["over_2_5"] + (1 - wo) * p["over_2_5"]
         btts = p["btts"]
 
         confidence = max(probs.values())
-        # agreement = share of the component models backing the same outcome
+        # agreement = share of the signals actually in the blend backing the same outcome
         votes = [max(OUTCOMES, key=lambda o: sigs[k][o]) for k in sources]
         top_vote = max(set(votes), key=votes.count)
         agreement = votes.count(top_vote) / len(votes)
 
-        advice = ""
+        notes = []
+        unseen = [t for t, ok in ((home, home_known), (away, away_known)) if not ok]
+        if unseen:
+            how = ("league-average" if cfg.promoted_prior <= 0
+                   else "a typical promoted side (bottom-of-table ratings)")
+            notes.append(f"not in the training data, rated as {how}: "
+                         f"{', '.join(unseen)}")
         if odds:
             value = {o: probs[o] * odds[{"H": 0, "D": 1, "A": 2}[o]]
                      for o in OUTCOMES}
             best = max(value, key=value.get)
             if value[best] > 1.10:
-                advice = (f"model sees value in '{best}' "
-                          f"(model {probs[best]:.1%} vs market {sigs['odds'][best]:.1%})")
+                notes.append(f"model sees value in '{best}' "
+                             f"(model {probs[best]:.1%} vs market {sigs['odds'][best]:.1%})")
 
         return Prediction(
             home=home, away=away,
@@ -297,18 +383,12 @@ class Predictor:
             most_likely_score=p["most_likely_score"],
             most_likely_prob=p["most_likely_prob"],
             confidence=confidence, model_agreement=agreement,
-            source="+".join(sources), advice=advice,
+            source="+".join(sources), advice="; ".join(notes),
         )
 
     def predict_many(self, matches: Sequence[d.Match]) -> list[Prediction]:
         """Predict a list of fixtures, using each match's odds when available."""
-        out = []
-        for m in matches:
-            odds = None
-            if m.stats.get("home_odds") and m.stats.get("draw_odds") and m.stats.get("away_odds"):
-                odds = (m.stat("home_odds"), m.stat("draw_odds"), m.stat("away_odds"))
-            out.append(self.predict(m.home, m.away, odds=odds))
-        return out
+        return [self.predict(x.home, x.away, odds=_match_odds(x)) for x in matches]
 
 
 # ---------------------------------------------------------------------------
@@ -316,12 +396,28 @@ class Predictor:
 # ---------------------------------------------------------------------------
 
 
+def _grid(step: float) -> list[float]:
+    n_steps = max(1, int(round(1.0 / step)))
+    return [i / n_steps for i in range(n_steps + 1)]
+
+
 def fit_predictor(train: Sequence[d.Match], config: PredictorConfig | None = None,
                   verbose: bool = False) -> Predictor:
     """Fit a predictor: Poisson model + Elo, with blend weights and calibration tuned
-    on an internal holdout (the most recent ``holdout_frac`` of matches)."""
-    cfg = config or PredictorConfig()
-    matches = sorted(train, key=lambda m: (m.date, m.home))
+    on an internal holdout (the most recent ``holdout_frac`` of matches).
+
+    Tuning happens in three steps on the holdout:
+
+    1. the Poisson-vs-Elo share of the model blend (all holdout matches);
+    2. a calibration temperature for that blend (all holdout matches);
+    3. the market-odds weight (holdout matches that have odds).
+
+    With ``config.refit`` (the default) the Poisson and Elo models are then refitted
+    on *all* the training matches, so the most recent results — usually the most
+    informative ones — are not thrown away.
+    """
+    cfg = replace(config) if config is not None else PredictorConfig()
+    matches = sorted(train, key=lambda x: (x.date, x.home))
     if len(matches) < 60:
         raise ValueError("need at least 60 matches to fit a predictor")
     holdout_n = max(20, int(len(matches) * cfg.holdout_frac))
@@ -330,99 +426,121 @@ def fit_predictor(train: Sequence[d.Match], config: PredictorConfig | None = Non
     poisson = m.fit_poisson(fit_matches, decay=cfg.decay, ridge=cfg.ridge,
                             fit_rho=cfg.fit_rho)
     elo = fit_elo_signal(fit_matches, k=cfg.k, home_advantage=cfg.home_advantage)
-
-    # --- tune the blend weights on the holdout --------------------------------
     signals = _holdout_signals(holdout, poisson, elo)
-    best_w, best_ll = None, math.inf
-    n_steps = int(round(1.0 / cfg.grid_step))
-    steps = [i * cfg.grid_step for i in range(n_steps + 1)]
-    for wp in steps:
-        for we in steps:
-            if wp + we > 1.0 + 1e-9:
-                continue
-            wo = max(0.0, 1.0 - wp - we)
-            ll = _signals_log_loss(signals, wp, we, wo)
-            if ll < best_ll:
-                best_ll, best_w = ll, (wp, we, wo)
-    wp, we, wo = best_w
-    cfg.poisson_weight, cfg.elo_weight, cfg.odds_weight = wp, we, wo
 
-    # --- temperature calibration on the holdout ------------------------------
+    # --- 1. Poisson vs Elo ---------------------------------------------------
+    share = min(_grid(cfg.grid_step),
+                key=lambda s: _model_log_loss(signals, s, 1.0))
+
+    # --- 2. temperature calibration -----------------------------------------
     temp = 1.0
     if cfg.calibrate:
-        best_t, best_ll = 1.0, math.inf
-        t = 0.5
+        temps, t = [], 0.5
         while t <= 2.5001:
-            ll = _signals_log_loss(signals, wp, we, wo, temperature=t)
-            if ll < best_ll:
-                best_ll, best_t = ll, t
+            temps.append(round(t, 6))
             t += cfg.temp_step
-        temp = best_t
+        temp = min(temps, key=lambda t_: _model_log_loss(signals, share, t_))
+    model_ll = _model_log_loss(signals, share, temp)
 
+    # --- 3. market-odds weight ----------------------------------------------
+    with_odds = [s_ for s_ in signals if s_[3] is not None]
+    wo = cfg.odds_weight
+    odds_tuned = bool(with_odds)
+    if with_odds:
+        wo = min(_grid(cfg.grid_step),
+                 key=lambda w: _blend_log_loss(with_odds, share, temp, w))
+
+    cfg.poisson_share = share
+    cfg.odds_weight = wo
+    cfg.poisson_weight = share * (1.0 - wo)
+    cfg.elo_weight = (1.0 - share) * (1.0 - wo)
+
+    # --- refit on everything --------------------------------------------------
+    used = fit_matches
+    if cfg.refit:
+        used = matches
+        poisson = m.fit_poisson(matches, decay=cfg.decay, ridge=cfg.ridge,
+                                fit_rho=cfg.fit_rho)
+        elo = fit_elo_signal(matches, k=cfg.k, home_advantage=cfg.home_advantage)
+
+    prior = _apply_promoted_prior(poisson, elo, cfg.promoted_prior)
+
+    diagnostics = {
+        "unseen_team_prior": prior,
+        "holdout_log_loss": model_ll,
+        "holdout_size": len(holdout),
+        "holdout_with_odds": len(with_odds),
+        "blend_weights": (cfg.poisson_weight, cfg.elo_weight, cfg.odds_weight),
+        "poisson_share": share,
+        "odds_weight_tuned": odds_tuned,
+    }
+    if with_odds:
+        diagnostics["holdout_log_loss_with_odds"] = _blend_log_loss(with_odds, share,
+                                                                    temp, wo)
     pred = Predictor(poisson=poisson, elo=elo, config=cfg, temperature=temp,
-                     source="poisson+elo", n_train=len(fit_matches),
-                     diagnostics={"holdout_log_loss": best_ll, "blend_weights": best_w})
+                     source="poisson+elo", n_train=len(used),
+                     diagnostics=diagnostics, teams=d.team_names(matches))
     if verbose:
-        print(f"  fitted on {len(fit_matches)} matches "
-              f"(holdout {len(holdout)})")
-        print(f"  blend weights: poisson {wp:.2f}  elo {we:.2f}  odds {wo:.2f}")
-        print(f"  temperature: {temp:.2f}   holdout log-loss: {best_ll:.4f}")
+        print(f"  tuned on {len(fit_matches)} matches + holdout {len(holdout)}"
+              + (f", refitted on all {len(matches)}" if cfg.refit else ""))
+        print(f"  model blend (no odds): poisson {share:.2f}  elo {1 - share:.2f}"
+              f"   temperature {temp:.2f}   holdout log-loss {model_ll:.4f}")
+        print(f"  with odds: poisson {cfg.poisson_weight:.2f}  elo {cfg.elo_weight:.2f}"
+              f"  odds {wo:.2f}" + ("" if odds_tuned else "  (default — no odds to tune on)"))
     return pred
 
 
-def _blend_probs(poisson_probs: dict, elo_probs: dict, wp: float, we: float,
-                 temperature: float = 1.0) -> dict[str, float]:
-    """Blend the Poisson and Elo 1X2 signals (weights renormalised)."""
-    total = wp + we
-    wp, we = (wp / total, we / total) if total else (0.5, 0.5)
-    probs = {o: wp * poisson_probs[o] + we * elo_probs[o] for o in OUTCOMES}
-    s = sum(probs.values())
-    probs = {o: p / s for o, p in probs.items()}
-    if temperature != 1.0:
-        logs = [math.log(max(probs[o], 1e-12)) / temperature for o in OUTCOMES]
-        mx = max(logs)
-        exps = [math.exp(z - mx) for z in logs]
-        s = sum(exps)
-        probs = {o: e / s for o, e in zip(OUTCOMES, exps)}
-    return probs
+def _apply_promoted_prior(poisson: m.PoissonModel, elo: EloSignal,
+                          frac: float) -> dict:
+    """Rate unseen teams like the weakest ``frac`` of the known teams.
+
+    Returns the ratings used (for diagnostics). ``frac <= 0`` keeps the
+    league-average default.
+    """
+    if frac <= 0.0 or not poisson.teams:
+        poisson.unseen_attack = poisson.unseen_defence = None
+        elo.unseen_rating = None
+        return {"fraction": 0.0, "attack": 0.0, "defence": 0.0,
+                "elo": elo.elo.initial}
+    n = max(1, min(len(poisson.teams), int(round(len(poisson.teams) * frac))))
+    weakest = sorted(poisson.teams,
+                     key=lambda t: poisson.attack[t] + poisson.defence[t])[:n]
+    poisson.unseen_attack = st.mean([poisson.attack[t] for t in weakest])
+    poisson.unseen_defence = st.mean([poisson.defence[t] for t in weakest])
+    known = [r for t, r in elo.elo.ratings.items() if t in poisson.teams]
+    elo.unseen_rating = st.mean(sorted(known)[:n]) if known else None
+    return {"fraction": frac, "teams": weakest, "attack": poisson.unseen_attack,
+            "defence": poisson.unseen_defence, "elo": elo.unseen_rating}
 
 
 def _holdout_signals(holdout: Sequence[d.Match], poisson: m.PoissonModel,
                      elo: EloSignal) -> list[tuple]:
     """Pre-compute each holdout match's signals so the weight search is cheap."""
     out = []
-    for m in holdout:
-        pp = _poisson_signal(poisson, m.home, m.away)
-        ep = elo.probs(m.home, m.away)
-        mp = None
-        if (m.stats.get("home_odds") and m.stats.get("draw_odds")
-                and m.stats.get("away_odds")):
-            mp = odds_to_probs(m.stat("home_odds"), m.stat("draw_odds"),
-                               m.stat("away_odds"))
-        out.append((m.result, pp, ep, mp))
+    for x in holdout:
+        pp = _poisson_signal(poisson, x.home, x.away)
+        ep = elo.probs(x.home, x.away)
+        odds = _match_odds(x)
+        mp = odds_to_probs(*odds) if odds else None
+        out.append((x.result, pp, ep, mp))
     return out
 
 
-def _signals_log_loss(signals: Sequence[tuple], wp: float, we: float, wo: float,
-                      temperature: float = 1.0) -> float:
-    """Log-loss for a candidate blend over pre-computed signals."""
+def _model_log_loss(signals: Sequence[tuple], share: float,
+                    temperature: float) -> float:
+    """Log-loss of the model-only blend over pre-computed signals."""
+    return st.mean([-math.log(max(_model_probs(pp, ep, share, temperature)[r], 1e-15))
+                    for r, pp, ep, _ in signals])
+
+
+def _blend_log_loss(signals: Sequence[tuple], share: float, temperature: float,
+                    wo: float) -> float:
+    """Log-loss of the model + market blend over signals that all have odds."""
     losses = []
-    for result, pp, ep, mp in signals:
-        if mp is not None and wo > 0:
-            total = wp + we + wo
-            probs = {o: (wp * pp[o] + we * ep[o] + wo * mp[o]) / total
-                     for o in OUTCOMES}
-        else:
-            probs = _blend_probs(pp, ep, wp, we)
-        s = sum(probs.values())
-        probs = {o: p / s for o, p in probs.items()}
-        if temperature != 1.0:
-            logs = [math.log(max(probs[o], 1e-12)) / temperature for o in OUTCOMES]
-            mx = max(logs)
-            exps = [math.exp(z - mx) for z in logs]
-            s2 = sum(exps)
-            probs = {o: e / s2 for o, e in zip(OUTCOMES, exps)}
-        losses.append(-math.log(max(probs[result], 1e-15)))
+    for r, pp, ep, mp in signals:
+        model = _model_probs(pp, ep, share, temperature)
+        prob = (1.0 - wo) * model[r] + wo * mp[r]
+        losses.append(-math.log(max(prob, 1e-15)))
     return st.mean(losses)
 
 
@@ -496,9 +614,7 @@ def backtest(matches: Sequence[d.Match], min_train: int = 190, step: int = 10,
         block = matches[start:start + step]
         pred = fit_predictor(train, config=cfg)
         for m in block:
-            odds = None
-            if use_odds and m.stats.get("home_odds") and m.stats.get("draw_odds"):
-                odds = (m.stat("home_odds"), m.stat("draw_odds"), m.stat("away_odds"))
+            odds = _match_odds(m) if use_odds else None
             predictions.append(pred.predict(m.home, m.away, odds=odds))
             outcomes.append(m)
         folds += 1

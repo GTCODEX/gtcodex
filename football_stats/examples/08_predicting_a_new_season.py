@@ -51,6 +51,8 @@ def main() -> None:
     print(f"\n  Promoted teams with no 2018/19 history: {', '.join(promoted)}.")
     print("  The model treats them as league-average (unseen_rating = 0.0); in")
     print("  practice you would blend in a prior from the second division.")
+    print("  (The full predictor, football_stats.predictor, rates them like the weakest")
+    print("  40% of last season's teams instead — see PredictorConfig.promoted_prior.)")
 
     print("\n--- 2. Monte-Carlo simulation of a season --------------------------")
     teams = d.team_names(test)
