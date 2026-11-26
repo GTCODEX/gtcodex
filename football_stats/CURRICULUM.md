@@ -305,23 +305,42 @@ walk-forward validation, Wilson confidence intervals, benchmarking against the m
 
 **What you learn:**
 - The predictor blends three signals — Poisson, Elo and the betting market — with
-  weights tuned on held-out data, then calibrates the probabilities.
-- On a walk-forward backtest over the last 190 matches of 2018/19:
+  weights tuned on held-out data, then calibrates the probabilities. After tuning, the
+  models are **refitted on every training match**, so the most recent (most informative)
+  results are not thrown away.
+- Walk-forward backtest over the last 190 matches of each season:
 
-  | metric | value |
-  |--------|-------|
-  | 1X2 accuracy | **56.8%** (95% CI 49.7%–63.7%) |
-  | log-loss | 0.9486 |
-  | Brier score | 0.5550 |
-  | ROC-AUC (home win) | 0.691 |
-  | over/under 2.5 accuracy | 55.8% |
-  | market log-loss (same matches) | **0.9169** |
+  | metric | 2018/19 + odds | 2018/19 no odds | 2019/20 + odds | 2019/20 no odds |
+  |--------|---------------:|----------------:|---------------:|----------------:|
+  | 1X2 accuracy | 56.3% | 54.2% | 52.1% | 51.6% |
+  | log-loss | 0.9495 | 0.9703 | 0.9707 | 1.0048 |
+  | Brier score | 0.5541 | 0.5677 | 0.5760 | 0.5969 |
+  | over/under 2.5 accuracy | 47.4% | 47.4% | 54.2% | 54.2% |
+  | **market log-loss (same matches)** | **0.9169** | **0.9169** | **0.9555** | **0.9555** |
 
-- **The market is still better, and that is the right result to get.** The gap of 0.032
+  The accuracy 95% confidence intervals are roughly ±7 points (n = 190), so the
+  differences between columns are mostly noise.
+
+- **The market is still better, and that is the right result to get.** The gap of 0.02–0.05
   in log-loss is the price of not having injuries, team news and a professional modelling
-  team. A model that "beats the bookmaker" on a single season is usually overfitting.
+  team. Even blending the odds *into* the model scores worse than using the odds alone.
+  A model that "beats the bookmaker" on a single season is usually overfitting.
+- Over/under 2.5 is about a coin flip. The Poisson goal totals carry very little signal.
 - The mid-range probabilities are well calibrated; the extremes (n = 17–30) are not —
   small samples, exactly as expected.
+- Team names you type are resolved strictly ("Man City", "Spurs" and "huddersfield" work),
+  but a typo is **rejected with a suggestion**, not silently rated as an average team.
+- Newly promoted sides (not in the training data) are rated like the **weakest 40% of
+  last season's teams**, about where promoted clubs usually finish, and flagged in the
+  prediction's note. Predicting all of 2019/20 from 2018/19 ratings:
+
+  | log-loss | all matches, no odds | all, with odds | promoted teams' matches, with odds |
+  |----------|-----:|-----:|-----:|
+  | promoted = league-average (`promoted_prior=0`) | 1.0233 | 0.9924 | 0.9923 |
+  | promoted = weakest 40% (default) | **1.0119** | **0.9859** | **0.9693** |
+
+  Caveat: that's three promoted teams in one season (Sheffield United finished 9th,
+  Norwich 20th), so treat 0.4 as a sensible default, not a measured optimum.
 
 **Exercises to try:**
 - `python -m football_stats.predict --backtest --decay 0.98` — does recency weighting help?
